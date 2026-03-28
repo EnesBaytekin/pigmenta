@@ -1,0 +1,13 @@
+[gd_scene load_steps=2 format=3 uid="uid://ctestgame"]
+
+[ext_resource type="Script" path="res://scripts/game/test_game_logic.gd" id="1_abcde"]
+
+[node name="TestGame" type="Node2D"]
+script = ExtResource("1_abcde")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+position = Vector2(160, 320)
+zoom = Vector2(1, 1)
+
+[node name="GridRenderer" type="Node2D" parent="."]
+position = Vector2(0, 0)

@@ -47,8 +47,12 @@ var speed_timer: float = 0.0
 # Particle ayarı
 var particles_enabled: bool = Constants.PARTICLE_ENABLED_DEFAULT
 
-# Bag system (her katman için bir sonraki piece)
-var next_pieces: Array = []
+# Bag system (7-bag randomizer)
+var piece_bag: Array = []
+
+# Renk sırası (döngüsel)
+var color_sequence: Array = []
+var color_sequence_index: int = 0
 
 # Random generator
 var rng: RandomNumberGenerator
@@ -74,6 +78,12 @@ func start_game(layers: int, players: int):
 	# Katman ataması yap
 	_setup_layer_assignment()
 
+	# Renk sırasını başlat (döngüsel: 0, 1, 2, 0, 1, 2...)
+	_setup_color_sequence()
+
+	# Bag system'i başlat
+	_refill_piece_bag()
+
 	# Hız sistemini sıfırla
 	current_fall_speed = Constants.DEFAULT_FALL_SPEED
 	speed_timer = 0.0
@@ -87,10 +97,17 @@ func start_game(layers: int, players: int):
 
 # İlk parçayı spawn et (lock olmadan)
 func _spawn_first_piece():
-	var piece_type = _get_random_piece_type()
-	var layer_color = _get_layer_color(current_layer_index)
+	var piece_type = _get_piece_from_bag()
 
-	current_piece = Tetromino.new(piece_type, current_layer_index, layer_color)
+	# Sıradaki katman index ve rengini al
+	var layer_idx = color_sequence[color_sequence_index]
+	var layer_color = _get_layer_color(layer_idx)
+	color_sequence_index = (color_sequence_index + 1) % color_sequence.size()
+
+	current_piece = Tetromino.new(piece_type, layer_idx, layer_color)
+
+	# Aktif katmanı güncelle
+	current_layer_index = layer_idx
 
 	if not _can_spawn_piece():
 		is_game_over = true
@@ -132,11 +149,18 @@ func spawn_piece():
 	if current_piece != null:
 		_lock_piece()
 
-	# Bir sonraki piece'i belirle
-	var piece_type = _get_random_piece_type()
-	var layer_color = _get_layer_color(current_layer_index)
+	# Bag'dan bir parça tipi çek
+	var piece_type = _get_piece_from_bag()
 
-	current_piece = Tetromino.new(piece_type, current_layer_index, layer_color)
+	# Sıradaki katman index ve rengini al
+	var layer_idx = color_sequence[color_sequence_index]
+	var layer_color = _get_layer_color(layer_idx)
+	color_sequence_index = (color_sequence_index + 1) % color_sequence.size()
+
+	current_piece = Tetromino.new(piece_type, layer_idx, layer_color)
+
+	# Aktif katmanı güncelle
+	current_layer_index = layer_idx
 
 	# Spawn pozisyonu dolu olabilir (game over)
 	if not _can_spawn_piece():
@@ -147,26 +171,6 @@ func spawn_piece():
 
 	piece_placed.emit(current_player_id, current_layer_index, current_piece)
 	return true
-
-# Rastgele bir tetromino tipi döndür
-func _get_random_piece_type() -> Constants.TetrominoType:
-	var types = [
-		Constants.TetrominoType.I,
-		Constants.TetrominoType.O,
-		Constants.TetrominoType.T,
-		Constants.TetrominoType.S,
-		Constants.TetrominoType.Z,
-		Constants.TetrominoType.J,
-		Constants.TetrominoType.L
-	]
-	return types[rng.randi() % types.size()]
-
-# Katman rengini al
-func _get_layer_color(layer_idx: int) -> Color:
-	var colors = Constants.get_layer_colors(layer_count)
-	if layer_idx >= 0 and layer_idx < colors.size():
-		return colors[layer_idx]
-	return Color.WHITE
 
 # Piece spawn edilebilir mi?
 func _can_spawn_piece() -> bool:
@@ -187,7 +191,8 @@ func _can_spawn_piece() -> bool:
 					return false
 				if target_y >= grid.height:
 					return false
-				if grid.is_occupied_in_layer(current_layer_index, target_x, target_y):
+				# current_piece'in kendi katmanını kontrol et
+				if grid.is_occupied_in_layer(current_piece.layer_index, target_x, target_y):
 					return false
 
 	return true
@@ -396,3 +401,62 @@ func get_current_piece() -> Tetromino:
 # Grid'i al (readonly)
 func get_grid() -> GridData:
 	return grid
+
+# ==================== BAG SYSTEM & COLOR SEQUENCE ====================
+
+# Renk sırasını kur (0, 1, 2, 0, 1, 2... döngüsü)
+func _setup_color_sequence():
+	color_sequence.clear()
+	for i in range(layer_count):
+		color_sequence.append(i)
+	color_sequence_index = 0
+
+# Katman rengini al (yardımcı fonksiyon)
+func _get_layer_color(layer_idx: int) -> Color:
+	var colors = Constants.get_layer_colors(layer_count)
+	if layer_idx >= 0 and layer_idx < colors.size():
+		return colors[layer_idx]
+	return Color.WHITE
+
+# Bag'ı doldur (7-bag system: her 7 parçadan biri her tipte)
+func _refill_piece_bag():
+	piece_bag.clear()
+	var all_types = [
+		Constants.TetrominoType.I,
+		Constants.TetrominoType.O,
+		Constants.TetrominoType.T,
+		Constants.TetrominoType.S,
+		Constants.TetrominoType.Z,
+		Constants.TetrominoType.J,
+		Constants.TetrominoType.L
+	]
+
+	# Tüm tipleri ekle
+	piece_bag.append_array(all_types)
+
+	# Karıştır
+	for i in range(piece_bag.size() - 1):
+		var j = rng.randi_range(i, piece_bag.size() - 1)
+		var temp = piece_bag[i]
+		piece_bag[i] = piece_bag[j]
+		piece_bag[j] = temp
+
+# Bag'dan bir parça tipi çek
+func _get_piece_from_bag() -> Constants.TetrominoType:
+	if piece_bag.is_empty():
+		_refill_piece_bag()
+
+	return piece_bag.pop_front()
+
+# Rastgele bir tetromino tipi döndür (artık kullanılmıyor, bag system kullanılıyor)
+func _get_random_piece_type() -> Constants.TetrominoType:
+	var types = [
+		Constants.TetrominoType.I,
+		Constants.TetrominoType.O,
+		Constants.TetrominoType.T,
+		Constants.TetrominoType.S,
+		Constants.TetrominoType.Z,
+		Constants.TetrominoType.J,
+		Constants.TetrominoType.L
+	]
+	return types[rng.randi() % types.size()]

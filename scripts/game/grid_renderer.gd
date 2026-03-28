@@ -119,15 +119,31 @@ func _update_layout():
 		grid_background.size = Vector2(grid_width, grid_height)
 		grid_background.position = Vector2.ZERO
 
-	# Hücreleri konumlandır
+	# Hücreleri konumlandır ve görünürlük ayarla
 	if grid_data != null:
 		for layer_idx in range(grid_data.layer_count):
+			var is_visible = (view_mode == Constants.ViewMode.SIDE_BY_SIDE) or (view_mode == Constants.ViewMode.OVERLAPPED and layer_idx == 0)
+
 			for y in range(grid_size.y):
 				for x in range(grid_size.x):
 					if layer_idx < cell_sprites.size() and y < cell_sprites[layer_idx].size() and x < cell_sprites[layer_idx][y].size():
 						var sprite = cell_sprites[layer_idx][y][x]
 						sprite.size = cell_size
-						sprite.position = Vector2(x * cell_size.x, y * cell_size.y)
+
+						# Overlapped mod: hepsi aynı pozisyonda, side-by-side: yan yana
+						if view_mode == Constants.ViewMode.OVERLAPPED:
+							sprite.position = Vector2(x * cell_size.x, y * cell_size.y)
+						else:  # SIDE_BY_SIDE
+							sprite.position = Vector2(
+								layer_idx * (grid_width + 20) + x * cell_size.x,  # 20px spacing
+								y * cell_size.y
+							)
+
+						# Görünürlük ayarla
+						if layer_idx == 0 or view_mode == Constants.ViewMode.SIDE_BY_SIDE:
+							sprite.visible = is_visible
+						else:
+							sprite.visible = false  # Overlapped modda sadece ilk katman
 
 	# Hücreleri güncelle
 	_update_all_cells()
@@ -137,13 +153,43 @@ func _update_all_cells():
 	if grid_data == null or cell_sprites.is_empty():
 		return
 
-	for layer_idx in range(min(grid_data.layer_count, cell_sprites.size())):
-		for y in range(min(grid_size.y, cell_sprites[layer_idx].size())):
-			for x in range(min(grid_size.x, cell_sprites[layer_idx][y].size())):
-				_update_cell(layer_idx, x, y)
+	if view_mode == Constants.ViewMode.OVERLAPPED:
+		# Overlapped mod: sadece ilk katmanı göster, tüm renkleri karıştır
+		for y in range(min(grid_size.y, cell_sprites[0].size())):
+			for x in range(min(grid_size.x, cell_sprites[0][y].size())):
+				_update_cell_overlapped(x, y)
+	else:
+		# Side-by-side mod: her katmanı ayrı göster
+		for layer_idx in range(min(grid_data.layer_count, cell_sprites.size())):
+			for y in range(min(grid_size.y, cell_sprites[layer_idx].size())):
+				for x in range(min(grid_size.x, cell_sprites[layer_idx][y].size())):
+					_update_cell_separated(layer_idx, x, y)
 
-# Tek bir hücreyi güncelle
-func _update_cell(layer_idx: int, x: int, y: int):
+# Overlapped modda hücre güncelle (tüm katmanlardaki renkleri karıştır)
+func _update_cell_overlapped(x: int, y: int):
+	if grid_data == null or cell_sprites.is_empty():
+		return
+
+	if y >= cell_sprites[0].size() or x >= cell_sprites[0][y].size():
+		return
+
+	var sprite = cell_sprites[0][y][x]
+
+	# Tüm katmanlardaki renkleri topla
+	var colors_at_pos = grid_data.get_colors_at_position(x, y)
+
+	if colors_at_pos.is_empty():
+		# Hiçbir katmanda blok yok
+		sprite.color = Color.TRANSPARENT
+		sprite.color.a = 0.0
+	else:
+		# Renkleri karıştır (RGB additive blending)
+		var blended_color = Constants.blend_colors(colors_at_pos)
+		sprite.color = blended_color
+		sprite.color.a = 1.0
+
+# Side-by-side modda hücre güncelle (tek katman)
+func _update_cell_separated(layer_idx: int, x: int, y: int):
 	if grid_data == null:
 		return
 

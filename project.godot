@@ -11,9 +11,13 @@ config_version=5
 [application]
 
 config/name="Pigmenta"
+run/main_scene="res://scenes/game/test_game.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 config/icon="res://icon.svg"
-run/main_scene="res://scenes/game/test_game.tscn"
+
+[autoload]
+
+Constants="*res://scripts/utils/constants.gd"
 
 [physics]
 
@@ -24,7 +28,3 @@ run/main_scene="res://scenes/game/test_game.tscn"
 rendering_device/driver.windows="d3d12"
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
-
-[autoload]
-
-Constants="*res://scripts/utils/constants.gd"

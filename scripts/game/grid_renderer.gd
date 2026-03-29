@@ -28,7 +28,8 @@ var cell_sprites: Array = []  # 3D array: [layer][y][x]
 var ghost_sprites: Array = []
 
 # Aktif piece
-var active_piece_sprites: Array = []
+var active_piece_sprites: Array = []  # Mevcut sprite'lar
+var target_positions: Array = []  # Hedef pozisyonlar
 
 # Layer colors (highlight için)
 var layer_colors: Array = []
@@ -41,7 +42,14 @@ func _ready():
 	_create_layer_highlight()
 
 func _process(delta):
-	pass
+	# Smooth animasyon - hedef pozisyonlara lerp
+	for i in range(active_piece_sprites.size()):
+		if i < target_positions.size():
+			var sprite = active_piece_sprites[i]
+			var target = target_positions[i]
+			if is_instance_valid(sprite):
+				# Lerp ile yumuşak geçiş (0.2 = hızı, düşük = daha yumuşak)
+				sprite.position = sprite.position.lerp(target, 0.2)
 
 # Grid verisini ayarla
 func set_grid_data(data: GridData):
@@ -212,32 +220,54 @@ func _update_cell_separated(layer_idx: int, x: int, y: int):
 func update_active_piece(piece: Tetromino):
 	if piece == null:
 		_clear_active_piece_sprites()
+		target_positions.clear()
 		return
 
-	# Önceki sprite'ları temizle
-	_clear_active_piece_sprites()
-
-	# Sprite'ları oluştur
 	var shape = piece.shape
 	var pos = piece.grid_position
 
+	# İhtiyaç duyulan sprite sayısı
+	var needed_sprites = 0
 	for y in range(shape.size()):
 		for x in range(shape[0].size()):
 			if shape[y][x] == 1:
-				var sprite = ColorRect.new()
-				sprite.size = cell_size
-				sprite.position = Vector2(
+				needed_sprites += 1
+
+	# Fazla sprite'ları temizle
+	while active_piece_sprites.size() > needed_sprites:
+		var extra = active_piece_sprites.pop_back()
+		if is_instance_valid(extra):
+			extra.queue_free()
+
+	target_positions.clear()
+
+	# Sprite'ları güncelle veya oluştur
+	var sprite_index = 0
+	for y in range(shape.size()):
+		for x in range(shape[0].size()):
+			if shape[y][x] == 1:
+				var target_pos = Vector2(
 					(pos.x + x) * cell_size.x,
 					(pos.y + y) * cell_size.y
 				)
-				sprite.color = piece.color
-				sprite.color.a = 1.0
+				target_positions.append(target_pos)
 
-				# Border ekle
-				var border_color = piece.color.darkened(0.3)
+				var sprite: ColorRect
+				if sprite_index < active_piece_sprites.size():
+					# Mevcut sprite'ı yeniden kullan
+					sprite = active_piece_sprites[sprite_index]
+					sprite.color = piece.color
+					sprite.modulate = Color.WHITE
+				else:
+					# Yeni sprite oluştur
+					sprite = ColorRect.new()
+					sprite.size = cell_size
+					sprite.position = target_pos  # Başlangıçta hedefte
+					sprite.color = piece.color
+					add_child(sprite)
+					active_piece_sprites.append(sprite)
 
-				add_child(sprite)
-				active_piece_sprites.append(sprite)
+				sprite_index += 1
 
 # Ghost piece'i güncelle
 func update_ghost_piece(piece: Tetromino):

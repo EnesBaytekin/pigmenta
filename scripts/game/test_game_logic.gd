@@ -5,6 +5,7 @@ extends Node2D
 
 var game_manager: GameManager
 var grid_renderer: GridRenderer
+var particle_manager: ParticleManager
 
 var fall_timer: float = 0.0
 
@@ -35,6 +36,10 @@ func _ready():
 	grid_renderer.set_layer_colors(Constants.get_layer_colors(3))
 
 	renderer_node.add_child(grid_renderer)
+
+	# ParticleManager oluştur
+	particle_manager = ParticleManager.new()
+	add_child(particle_manager)
 
 	# İlk parçayı göster
 	_update_renderer()
@@ -148,10 +153,42 @@ func _update_renderer():
 
 func _on_piece_placed(player_id: int, layer_index: int, piece: Tetromino):
 	print("Piece placed by player %d in layer %d" % [player_id, layer_index])
+
+	# Particle efekti
+	if particle_manager != null:
+		var positions = []
+		var colors = []
+		var shape = piece.shape
+		var pos = piece.grid_position
+
+		# GridRenderer pozisyonunu al
+		var grid_offset = grid_renderer.global_position if grid_renderer != null else Vector2.ZERO
+
+		for y in range(shape.size()):
+			for x in range(shape[0].size()):
+				if shape[y][x] == 1:
+					var grid_pos = Vector2(
+						(pos.x + x) * 32 + 16,  # Hücre merkezi
+						(pos.y + y) * 32 + 16
+					)
+					# GridRenderer pozisyonunu ekle
+					positions.append(grid_pos + grid_offset)
+					colors.append(piece.color)
+
+		particle_manager.spawn_block_place_particles(positions, colors)
+
 	_update_renderer()
 
 func _on_rows_cleared(row_indices: Array, score_gained: int):
 	print("Rows cleared: %s, Score: %d" % [row_indices, score_gained])
+
+	# Particle efekti
+	if particle_manager != null:
+		var layer_colors = Constants.get_layer_colors(game_manager.layer_count)
+		var grid_offset = grid_renderer.global_position if grid_renderer != null else Vector2.ZERO
+
+		for row_y in row_indices:
+			particle_manager.spawn_line_clear_particles(row_y, layer_colors, grid_offset)
 
 func _on_layer_changed(player_id: int, old_layer: int, new_layer: int):
 	print("Player %d: Layer %d -> %d" % [player_id, old_layer, new_layer])

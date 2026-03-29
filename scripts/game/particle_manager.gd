@@ -58,14 +58,13 @@ func spawn_block_place_particles(positions: Array, colors: Array):
 		_spawn_block_explosion(pos, color)
 
 # Line clear particle efekti spawn et
-func spawn_line_clear_particles(row_y: int, layer_colors: Array, grid_offset: Vector2 = Vector2.ZERO):
+func spawn_line_clear_particles(row_y: int, grid_offset: Vector2 = Vector2.ZERO):
 	if not particles_enabled:
 		return
 
 	for x in range(10):  # Grid genişliği
 		var pos = Vector2(x * 32 + 16, row_y * 32 + 16) + grid_offset  # Hücre merkezi + offset
-		for color in layer_colors:
-			_spawn_block_explosion(pos, color)  # Block explosion kullan, daha büyük etki
+		_spawn_block_explosion(pos, Color.WHITE)  # Beyaz particle'lar
 
 # Tek bir blok için patlama efekti
 func _spawn_block_explosion(pos: Vector2, color: Color):

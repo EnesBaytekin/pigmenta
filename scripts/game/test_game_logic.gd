@@ -161,10 +161,29 @@ func _on_piece_locked(positions: Array, colors: Array):
 	if particle_manager != null:
 		var grid_offset = grid_renderer.global_position if grid_renderer != null else Vector2.ZERO
 		var adjusted_positions = []
-		for pos in positions:
+		var particle_colors = []
+
+		# Overlapped modda karışık renkleri hesapla
+		var is_overlapped = (grid_renderer.view_mode == Constants.ViewMode.OVERLAPPED)
+
+		for i in range(positions.size()):
+			var pos = positions[i]
 			adjusted_positions.append(pos + grid_offset)
 
-		particle_manager.spawn_block_place_particles(adjusted_positions, colors)
+			if is_overlapped:
+				# Grid pozisyonunu hesapla
+				var grid_x = int(pos.x / 32.0)
+				var grid_y = int(pos.y / 32.0)
+
+				# O pozisyondaki karışık rengi al
+				var colors_at_pos = game_manager.get_grid().get_colors_at_position(grid_x, grid_y)
+				var blended_color = Constants.blend_colors(colors_at_pos)
+				particle_colors.append(blended_color)
+			else:
+				# Side-by-side modda normal renk
+				particle_colors.append(colors[i])
+
+		particle_manager.spawn_block_place_particles(adjusted_positions, particle_colors)
 
 func _on_piece_placed(player_id: int, layer_index: int, piece: Tetromino):
 	print("Piece placed by player %d in layer %d" % [player_id, layer_index])
@@ -173,13 +192,12 @@ func _on_piece_placed(player_id: int, layer_index: int, piece: Tetromino):
 func _on_rows_cleared(row_indices: Array, score_gained: int):
 	print("Rows cleared: %s, Score: %d" % [row_indices, score_gained])
 
-	# Particle efekti
+	# Particle efekti (beyaz)
 	if particle_manager != null:
-		var layer_colors = Constants.get_layer_colors(game_manager.layer_count)
 		var grid_offset = grid_renderer.global_position if grid_renderer != null else Vector2.ZERO
 
 		for row_y in row_indices:
-			particle_manager.spawn_line_clear_particles(row_y, layer_colors, grid_offset)
+			particle_manager.spawn_line_clear_particles(row_y, grid_offset)
 
 func _on_layer_changed(player_id: int, old_layer: int, new_layer: int):
 	print("Player %d: Layer %d -> %d" % [player_id, old_layer, new_layer])

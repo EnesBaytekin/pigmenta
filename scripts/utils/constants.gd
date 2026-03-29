@@ -35,6 +35,7 @@ const PARTICLE_ENABLED_DEFAULT = true
 const PARTICLE_COUNT_PER_BLOCK = 15
 const PARTICLE_LIFETIME = 0.5
 const PARTICLE_EXPLOSION_SPEED = 100.0
+const PARTICLE_GRAVITY = 800.0  # Yer çekimi ivmesi (piksel/saniye²)
 
 # Tetramino Tipleri
 enum TetrominoType {

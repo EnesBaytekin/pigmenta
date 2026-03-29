@@ -21,6 +21,7 @@ func _ready():
 
 	# Signal'ları bağla
 	game_manager.piece_placed.connect(_on_piece_placed)
+	game_manager.piece_locked.connect(_on_piece_locked)  # Yeni: Particle için
 	game_manager.rows_cleared.connect(_on_rows_cleared)
 	game_manager.layer_changed.connect(_on_layer_changed)
 	game_manager.game_over.connect(_on_game_over)
@@ -116,8 +117,10 @@ func _input(event):
 	elif event.is_action("ui_down"):
 		if event.is_pressed():
 			if move_down_timer <= 0:
-				if game_manager.move_down():
-					_update_renderer()
+				if not game_manager.move_down():
+					# Aşağı hareket edemez -> lock et ve yeni piece spawn et
+					game_manager.spawn_piece()
+				_update_renderer()
 				move_down_timer = Constants.SOFT_DROP_SPEED
 
 	# Rotation
@@ -151,32 +154,20 @@ func _update_renderer():
 
 # Signal handlers
 
-func _on_piece_placed(player_id: int, layer_index: int, piece: Tetromino):
-	print("Piece placed by player %d in layer %d" % [player_id, layer_index])
+func _on_piece_locked(positions: Array, colors: Array):
+	print("Piece locked! Spawning particles at ", positions.size(), " positions")
 
 	# Particle efekti
 	if particle_manager != null:
-		var positions = []
-		var colors = []
-		var shape = piece.shape
-		var pos = piece.grid_position
-
-		# GridRenderer pozisyonunu al
 		var grid_offset = grid_renderer.global_position if grid_renderer != null else Vector2.ZERO
+		var adjusted_positions = []
+		for pos in positions:
+			adjusted_positions.append(pos + grid_offset)
 
-		for y in range(shape.size()):
-			for x in range(shape[0].size()):
-				if shape[y][x] == 1:
-					var grid_pos = Vector2(
-						(pos.x + x) * 32 + 16,  # Hücre merkezi
-						(pos.y + y) * 32 + 16
-					)
-					# GridRenderer pozisyonunu ekle
-					positions.append(grid_pos + grid_offset)
-					colors.append(piece.color)
+		particle_manager.spawn_block_place_particles(adjusted_positions, colors)
 
-		particle_manager.spawn_block_place_particles(positions, colors)
-
+func _on_piece_placed(player_id: int, layer_index: int, piece: Tetromino):
+	print("Piece placed by player %d in layer %d" % [player_id, layer_index])
 	_update_renderer()
 
 func _on_rows_cleared(row_indices: Array, score_gained: int):

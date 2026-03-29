@@ -7,6 +7,7 @@ extends Node
 
 # Signal'lar
 signal piece_placed(player_id: int, layer_index: int, piece: Tetromino)
+signal piece_locked(positions: Array, colors: Array)  # Yeni: Particle için
 signal rows_cleared(row_indices: Array, score_gained: int)
 signal layer_changed(player_id: int, old_layer: int, new_layer: int)
 signal game_over()
@@ -206,11 +207,26 @@ func _lock_piece():
 	var pos = current_piece.grid_position
 	var color = current_piece.color
 
+	# Particle'lar için pozisyonları ve renkleri topla
+	var particle_positions = []
+	var particle_colors = []
+
 	# Grid'e yerleştir
 	for y in range(shape.size()):
 		for x in range(shape[0].size()):
 			if shape[y][x] == 1:
 				grid.set_cell(current_layer_index, pos.x + x, pos.y + y, color)
+
+				# Particle için pozisyon hesapla
+				var particle_pos = Vector2(
+					(pos.x + x) * 32 + 16,  # Hücre merkezi
+					(pos.y + y) * 32 + 16
+				)
+				particle_positions.append(particle_pos)
+				particle_colors.append(color)
+
+	# Particle signal'i emit et
+	piece_locked.emit(particle_positions, particle_colors)
 
 	# Satırları kontrol et ve sil
 	_check_and_clear_lines()

@@ -6,7 +6,7 @@ class_name GridRenderer
 extends Node2D
 
 # Grid boyutları
-var cell_size: Vector2 = Vector2(32, 32)  # Her hücrenin piksel boyutu
+var cell_size: Vector2 = Vector2(32, 32)  # Her hücrenin piksel boyutu (8x8 texture, 4x scale)
 var grid_size: Vector2i = Vector2i(Constants.GRID_WIDTH, Constants.GRID_HEIGHT)
 
 # Grid verisi
@@ -16,9 +16,11 @@ var grid_data: GridData
 var view_mode: Constants.ViewMode = Constants.ViewMode.OVERLAPPED
 var show_ghost: bool = true  # Ghost piece göster
 
+# Sprite sheet loader
+var sprite_loader: SpriteSheetLoader
+
 # Texture'lar
 var block_texture: Texture2D
-var ghost_texture: Texture2D
 var grid_background: ColorRect
 
 # Sprite container (her hücre için)
@@ -38,6 +40,10 @@ var layer_colors: Array = []
 var layer_highlight: ColorRect
 
 func _ready():
+	# Sprite sheet loader oluştur
+	sprite_loader = SpriteSheetLoader.new()
+	add_child(sprite_loader)
+
 	_create_grid_background()
 	_create_layer_highlight()
 
@@ -109,8 +115,9 @@ func _create_cell_sprites():
 		for y in range(grid_size.y):
 			var row_array = []
 			for x in range(grid_size.x):
-				var sprite = ColorRect.new()
-				sprite.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				var sprite = Sprite2D.new()
+				sprite.centered = false
+				sprite.visible = false
 				add_child(sprite)
 				row_array.append(sprite)
 			layer_array.append(row_array)
@@ -135,8 +142,10 @@ func _update_layout():
 			for y in range(grid_size.y):
 				for x in range(grid_size.x):
 					if layer_idx < cell_sprites.size() and y < cell_sprites[layer_idx].size() and x < cell_sprites[layer_idx][y].size():
-						var sprite = cell_sprites[layer_idx][y][x]
-						sprite.size = cell_size
+						var sprite: Sprite2D = cell_sprites[layer_idx][y][x]
+
+						# Pixel art için texture filter'ı kapat
+						sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
 						# Overlapped mod: hepsi aynı pozisyonda, side-by-side: yan yana
 						if view_mode == Constants.ViewMode.OVERLAPPED:
@@ -175,46 +184,49 @@ func _update_all_cells():
 
 # Overlapped modda hücre güncelle (tüm katmanlardaki renkleri karıştır)
 func _update_cell_overlapped(x: int, y: int):
-	if grid_data == null or cell_sprites.is_empty():
+	if grid_data == null or cell_sprites.is_empty() or sprite_loader == null:
 		return
 
 	if y >= cell_sprites[0].size() or x >= cell_sprites[0][y].size():
 		return
 
-	var sprite = cell_sprites[0][y][x]
+	var sprite: Sprite2D = cell_sprites[0][y][x]
 
 	# Tüm katmanlardaki renkleri topla
 	var colors_at_pos = grid_data.get_colors_at_position(x, y)
 
 	if colors_at_pos.is_empty():
 		# Hiçbir katmanda blok yok
-		sprite.color = Color.TRANSPARENT
-		sprite.color.a = 0.0
+		sprite.visible = false
 	else:
 		# Renkleri karıştır (RGB additive blending)
 		var blended_color = Constants.blend_colors(colors_at_pos)
-		sprite.color = blended_color
-		sprite.color.a = 1.0
+		# Solid sprite kullan (satır 2 veya 3)
+		sprite.texture = sprite_loader.get_solid_sprite(blended_color)
+		sprite.modulate = Color.WHITE  # Her zaman beyaz, texture'ın kendi rengi
+		sprite.scale = Vector2(4, 4)  # 8x8 -> 32x32
+		sprite.visible = true
 
 # Side-by-side modda hücre güncelle (tek katman)
 func _update_cell_separated(layer_idx: int, x: int, y: int):
-	if grid_data == null:
+	if grid_data == null or sprite_loader == null:
 		return
 
 	if layer_idx >= cell_sprites.size() or y >= cell_sprites[layer_idx].size() or x >= cell_sprites[layer_idx][y].size():
 		return
 
-	var sprite = cell_sprites[layer_idx][y][x]
+	var sprite: Sprite2D = cell_sprites[layer_idx][y][x]
 	var cell_color = grid_data.get_cell(layer_idx, x, y)
 
 	if cell_color == null:
 		# Boş hücre
-		sprite.color = Color.TRANSPARENT
-		sprite.color.a = 0.0
+		sprite.visible = false
 	else:
 		# Dolu hücre
-		sprite.color = cell_color
-		sprite.color.a = 1.0
+		sprite.texture = sprite_loader.get_solid_sprite(cell_color)
+		sprite.modulate = Color.WHITE  # Modulate'ı resetle
+		sprite.scale = Vector2(4, 4)  # 8x8 -> 32x32
+		sprite.visible = true
 
 # Aktif parçayı güncelle
 func update_active_piece(piece: Tetromino):
@@ -252,20 +264,23 @@ func update_active_piece(piece: Tetromino):
 				)
 				target_positions.append(target_pos)
 
-				var sprite: ColorRect
+				var sprite: Sprite2D
 				if sprite_index < active_piece_sprites.size():
 					# Mevcut sprite'ı yeniden kullan
 					sprite = active_piece_sprites[sprite_index]
-					sprite.color = piece.color
-					sprite.modulate = Color.WHITE
 				else:
 					# Yeni sprite oluştur
-					sprite = ColorRect.new()
-					sprite.size = cell_size
+					sprite = Sprite2D.new()
+					sprite.centered = false
 					sprite.position = target_pos  # Başlangıçta hedefte
-					sprite.color = piece.color
+					sprite.scale = Vector2(4, 4)  # 8x8 -> 32x32
+					sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST  # Pixel art
 					add_child(sprite)
 					active_piece_sprites.append(sprite)
+
+				# Aktif sprite kullan (üst 2 satır)
+				if sprite_loader != null:
+					sprite.texture = sprite_loader.get_active_sprite(piece.color)
 
 				sprite_index += 1
 
@@ -286,16 +301,20 @@ func update_ghost_piece(piece: Tetromino):
 	for y in range(shape.size()):
 		for x in range(shape[0].size()):
 			if shape[y][x] == 1:
-				var sprite = ColorRect.new()
-				sprite.size = cell_size
+				var sprite = Sprite2D.new()
+				sprite.centered = false
 				sprite.position = Vector2(
 					(ghost_pos.x + x) * cell_size.x,
 					(ghost_pos.y + y) * cell_size.y
 				)
-				sprite.color = Color.TRANSPARENT
-				sprite.color.a = 0.0
+				sprite.scale = Vector2(4, 4)  # 8x8 -> 32x32
+				sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST  # Pixel art
+				sprite.modulate = Color.WHITE
+				sprite.modulate.a = 0.3  # Şeffaf
 
-				# Border sadece
+				# Aktif sprite kullan (üst 2 satır)
+				if sprite_loader != null:
+					sprite.texture = sprite_loader.get_active_sprite(piece.color)
 
 				add_child(sprite)
 				ghost_sprites.append(sprite)

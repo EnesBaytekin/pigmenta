@@ -25,15 +25,19 @@ func _init(t: Constants.TetrominoType, layer_idx: int, layer_color: Color):
 
 # Mevcut shape'i döndür (saat yönü)
 func rotate() -> Array:
-	shape = Constants.rotate_shape(shape)
-	rotation_state = (rotation_state + 1) % 4
+	var rotation_count = Constants.ROTATION_COUNTS[type]
+	if rotation_count > 1:
+		shape = Constants.rotate_shape(shape)
+		rotation_state = (rotation_state + 1) % rotation_count
 	return shape
 
 # Mevcut shape'i ters döndür (saat yönü tersi)
 func rotate_back() -> Array:
-	for i in range(3):  # 3 kez saat yönü döndür = 1 kez ters
-		shape = Constants.rotate_shape(shape)
-	rotation_state = (rotation_state + 3) % 4
+	var rotation_count = Constants.ROTATION_COUNTS[type]
+	if rotation_count > 1:
+		for i in range(rotation_count - 1):  # (n-1) kez saat yönü = 1 kez ters
+			shape = Constants.rotate_shape(shape)
+		rotation_state = (rotation_state + rotation_count - 1) % rotation_count
 	return shape
 
 # Hareket ettir
@@ -88,6 +92,10 @@ func can_rotate(grid: GridData, direction: int = 1) -> bool:
 # Rotasyon uygula (wall kick dahil)
 func apply_rotation(grid: GridData, direction: int = 1) -> bool:
 	# direction: 1 = saat yönü, -1 = saat yönü tersi
+	var rotation_count = Constants.ROTATION_COUNTS[type]
+	if rotation_count <= 1:
+		return false  # O bloğu gibi dönmeyenler
+
 	var new_shape = _get_rotated_shape(direction)
 	var kicks = Constants.get_wall_kicks(type, rotation_state)
 
@@ -97,9 +105,9 @@ func apply_rotation(grid: GridData, direction: int = 1) -> bool:
 			shape = new_shape
 			grid_position = test_pos
 			if direction == 1:
-				rotation_state = (rotation_state + 1) % 4
+				rotation_state = (rotation_state + 1) % rotation_count
 			else:
-				rotation_state = (rotation_state + 3) % 4
+				rotation_state = (rotation_state + rotation_count - 1) % rotation_count
 			return true
 
 	return false
@@ -148,8 +156,11 @@ func _can_place_at(grid: GridData, test_shape: Array, test_pos: Vector2i) -> boo
 
 # Rotasyon uygulanmış shape'i al (değiştirmeden)
 func _get_rotated_shape(direction: int) -> Array:
+	var rotation_count = Constants.ROTATION_COUNTS[type]
 	var result = shape.duplicate(true)
-	var rotations = direction if direction > 0 else direction + 4
+
+	var rotations = direction if direction > 0 else rotation_count - 1  # T yöne için
+
 	for i in range(rotations):
 		result = Constants.rotate_shape(result)
 	return result

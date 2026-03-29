@@ -114,6 +114,17 @@ enum SpeedMode {
 	CONSTANT      # Sabit hız
 }
 
+# Her tetromino için rotasyon sayısı
+const ROTATION_COUNTS = {
+	TetrominoType.I: 4,
+	TetrominoType.O: 1,
+	TetrominoType.T: 4,
+	TetrominoType.S: 2,
+	TetrominoType.Z: 2,
+	TetrominoType.J: 4,
+	TetrominoType.L: 4
+}
+
 # SRS Wall Kick Data (basitleştirilmiş)
 # Format: [rotation_offset, kick_tests]
 # kick_tests: [x_offset, y_offset] pairs to try

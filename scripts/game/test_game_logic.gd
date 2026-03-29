@@ -46,8 +46,8 @@ func _ready():
 	_update_renderer()
 
 	print("Test Game Started!")
-	print("Controls: Arrow Keys to move, Up to rotate, Space to hard drop")
-	print("P: Pause, R: Restart")
+	print("Controls: Arrow Keys to move, Up to rotate CW, PageDown to rotate CCW")
+	print("Space: Hard drop, P: Pause, R: Restart")
 
 func _process(delta):
 	if game_manager == null or game_manager.is_game_over:
@@ -125,7 +125,14 @@ func _input(event):
 
 	# Rotation
 	elif event.is_action_pressed("ui_up"):
+		# Saat yönü döndür
 		if game_manager.rotate_cw():
+			_update_renderer()
+
+	# Ters yöne döndür (Page Down tuşu)
+	elif event.is_action_pressed("ui_page_down"):
+		# Saat yönü tersine döndür
+		if game_manager.rotate_ccw():
 			_update_renderer()
 
 	# Hard drop

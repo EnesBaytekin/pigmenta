@@ -196,8 +196,11 @@ func _update_cell_overlapped(x: int, y: int):
 	var colors_at_pos = grid_data.get_colors_at_position(x, y)
 
 	if colors_at_pos.is_empty():
-		# Hiçbir katmanda blok yok
-		sprite.visible = false
+		# Hiçbir katmanda blok yok - arkaplan siyah blok göster
+		sprite.texture = sprite_loader.get_background_sprite()
+		sprite.modulate = Color.WHITE
+		sprite.scale = Vector2(4, 4)  # 8x8 -> 32x32
+		sprite.visible = true
 	else:
 		# Renkleri karıştır (RGB additive blending)
 		var blended_color = Constants.blend_colors(colors_at_pos)
@@ -219,8 +222,11 @@ func _update_cell_separated(layer_idx: int, x: int, y: int):
 	var cell_color = grid_data.get_cell(layer_idx, x, y)
 
 	if cell_color == null:
-		# Boş hücre
-		sprite.visible = false
+		# Boş hücre - arkaplan siyah blok göster
+		sprite.texture = sprite_loader.get_background_sprite()
+		sprite.modulate = Color.WHITE
+		sprite.scale = Vector2(4, 4)  # 8x8 -> 32x32
+		sprite.visible = true
 	else:
 		# Dolu hücre
 		sprite.texture = sprite_loader.get_solid_sprite(cell_color)

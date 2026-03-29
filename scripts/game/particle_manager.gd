@@ -7,9 +7,12 @@ extends Node2D
 # Particle ayarları
 var particles_enabled: bool = true
 var block_particles: Array = []  # Aktif particle'lar
+var sprite_loader: SpriteSheetLoader
 
 func _ready():
-	pass
+	# Sprite sheet loader oluştur
+	sprite_loader = SpriteSheetLoader.new()
+	add_child(sprite_loader)
 
 func _process(delta):
 	# Debug: Particle sayısını yazdır (sadece ilk birkaç saniyede)
@@ -34,10 +37,14 @@ func _process(delta):
 			# Yer çekimi efekti (velocity'yi güncelle)
 			if particle.has_meta("velocity"):
 				var velocity = particle.get_meta("velocity")
-				velocity.y += Constants.PARTICLE_GRAVITY * delta  # Aşağı doğru ivme
+				velocity.y += 500.0 * delta  # Yer çekimi: 500 piksel/saniye²
 				particle.set_meta("velocity", velocity)
 				# Pozisyonu güncelle
-				particle.position += velocity * delta
+				if particle is Sprite2D:
+					particle.position += velocity * delta
+				elif particle is ColorRect:
+					particle.position += velocity * delta
+
 
 	# Ölen particle'ları temizle (tersten, index kaymasın diye)
 	particles_to_remove.reverse()
@@ -73,19 +80,37 @@ func _spawn_block_explosion(pos: Vector2, color: Color):
 	print("Spawning explosion at: ", pos, " color: ", color)
 
 	for i in range(particle_count):
-		var particle = ColorRect.new()
-		particle.size = Vector2(6, 6)  # Orta boyut
-		particle.position = pos - Vector2(3, 3)  # Merkezleme
-		particle.color = color
+		var particle = Sprite2D.new()
+		particle.centered = false
+		particle.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST  # Pixel art
+
+		# Sprite sheet'ten doğru renkte solid sprite al
+		if sprite_loader != null:
+			particle.texture = sprite_loader.get_solid_sprite(color)
+		else:
+			# Fallback: ColorRect kullan
+			particle = ColorRect.new()
+			(particle as ColorRect).color = color
+			(particle as ColorRect).size = Vector2(4, 4)
+
+		# Bir piksel boyutu: 4 (32/8)
+		# İki piksel boyutunda: 8x8
+		if particle is Sprite2D:
+			particle.scale = Vector2(1.0, 1.0)  # 8x8 -> 8x8 (bir piksel)
+			particle.position = pos - Vector2(4, 4)
+		else:
+			(particle as ColorRect).size = Vector2(8, 8)
+			(particle as ColorRect).position = pos - Vector2(4, 4)
+
 		particle.z_index = 1000  # Çok yüksek z-index, ön planda olsun
 
-		# Rastgele yön ve hız (orta hız)
+		# Rastgele yön ve hız
 		var angle = randf() * TAU  # 0-2PI
-		var speed = 100.0 + randf() * 150.0  # Orta hız patlama
+		var speed = 100.0 + randf() * 200.0  # 100-300 arası
 		var velocity = Vector2(cos(angle), sin(angle)) * speed
 
-		# Orta yaşam ömrü
-		var lifetime = 0.5 + randf() * 0.3  # 0.5-0.8 saniye
+		# Kısa yaşam ömrü
+		var lifetime = 0.4 + randf() * 0.3  # 0.4-0.7 saniye
 
 		particle.set_meta("lifetime", lifetime)
 		particle.set_meta("velocity", velocity)
@@ -102,7 +127,8 @@ func _spawn_block_explosion(pos: Vector2, color: Color):
 		tween.tween_property(particle, "modulate:a", 0.0, lifetime)
 
 		# Scale animasyonu (küçülerek yok olma)
-		tween.tween_property(particle, "scale", Vector2(0, 0), lifetime)
+		if particle is Sprite2D:
+			tween.tween_property(particle, "scale", Vector2(0, 0), lifetime)
 
 # Particle'ları temizle
 func clear_all_particles():

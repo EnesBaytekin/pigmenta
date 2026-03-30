@@ -7,18 +7,9 @@ extends Node2D
 # Particle ayarları
 var particles_enabled: bool = true
 var block_particles: Array = []  # Aktif particle'lar
-var sprite_loader: SpriteSheetLoader
-
-func _ready():
-	# Sprite sheet loader oluştur
-	sprite_loader = SpriteSheetLoader.new()
-	add_child(sprite_loader)
+var line_highlights: Array = []  # Line clear highlight'ları
 
 func _process(delta):
-	# Debug: Particle sayısını yazdır (sadece ilk birkaç saniyede)
-	if Engine.get_process_frames() % 60 == 0:  # Her saniye bir
-		print("Active particles: ", block_particles.size())
-
 	# Particle'ları güncelle
 	var particles_to_remove = []
 	for i in range(block_particles.size()):
@@ -27,24 +18,22 @@ func _process(delta):
 			particles_to_remove.append(i)
 			continue
 
-		# Yaşam ömrü kontrolü
-		if particle.has_meta("lifetime"):
-			particle.set_meta("lifetime", particle.get_meta("lifetime") - delta)
-			if particle.get_meta("lifetime") <= 0:
+		# Hız ve pozisyon güncelle
+		if particle.has_meta("velocity"):
+			var velocity = particle.get_meta("velocity")
+
+			# Yavaşlama (friction)
+			var friction = 2.0  # Hız azalma çarpanı
+			velocity = velocity.move_toward(Vector2.ZERO, friction * delta * 60.0)  # frame-rate bağımsız
+			particle.set_meta("velocity", velocity)
+
+			# Pozisyonu güncelle
+			if particle is ColorRect:
+				particle.position += velocity * delta
+
+			# Hız çok düşükse particle'ı kaldır
+			if velocity.length() < 1.0:
 				particles_to_remove.append(i)
-				continue
-
-			# Yer çekimi efekti (velocity'yi güncelle)
-			if particle.has_meta("velocity"):
-				var velocity = particle.get_meta("velocity")
-				velocity.y += 500.0 * delta  # Yer çekimi: 500 piksel/saniye²
-				particle.set_meta("velocity", velocity)
-				# Pozisyonu güncelle
-				if particle is Sprite2D:
-					particle.position += velocity * delta
-				elif particle is ColorRect:
-					particle.position += velocity * delta
-
 
 	# Ölen particle'ları temizle (tersten, index kaymasın diye)
 	particles_to_remove.reverse()
@@ -58,77 +47,104 @@ func spawn_block_place_particles(positions: Array, colors: Array):
 	if not particles_enabled:
 		return
 
-	print("Spawning particles: ", positions.size(), " positions")
+	print("Particle Manager: Spawning ", positions.size(), " cells")
 	for i in range(positions.size()):
 		var pos = positions[i]
 		var color = colors[i] if i < colors.size() else Color.WHITE
-		_spawn_block_explosion(pos, color)
+		print("  Cell ", i, " at ", pos, " color ", color)
+		_spawn_cell_explosion(pos, color)
 
-# Line clear particle efekti spawn et
-func spawn_line_clear_particles(row_y: int, grid_offset: Vector2 = Vector2.ZERO):
+# Line clear highlight efekti spawn et
+func spawn_line_clear_particles(row_indices: Array, grid_offset: Vector2 = Vector2.ZERO):
 	if not particles_enabled:
 		return
 
-	for x in range(10):  # Grid genişliği
-		var pos = Vector2(x * 32 + 16, row_y * 32 + 16) + grid_offset  # Hücre merkezi + offset
-		_spawn_block_explosion(pos, Color.WHITE)  # Beyaz particle'lar
+	# Satırları highlight'la (beyaz çizgi olarak)
+	for row_y in row_indices:
+		_spawn_line_highlight(row_y, grid_offset)
 
-# Tek bir blok için patlama efekti
-func _spawn_block_explosion(pos: Vector2, color: Color):
-	var particle_count = Constants.PARTICLE_COUNT_PER_BLOCK * 2  # 2 kat daha fazla particle
+# Tek bir hücre için patlama efekti (çevresindeki 28 pixelden particle)
+func _spawn_cell_explosion(cell_pos: Vector2, cell_color: Color):
+	print("    Spawning explosion at ", cell_pos, " color ", cell_color)
 
-	print("Spawning explosion at: ", pos, " color: ", color)
+	# Cell pozisyonu (hücrenin sol üst köşesi)
+	var cell_x = int(cell_pos.x)
+	var cell_y = int(cell_pos.y)
 
-	for i in range(particle_count):
-		var particle = Sprite2D.new()
-		particle.centered = false
-		particle.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST  # Pixel art
+	# 8x8 hücrenin çevresindeki piksellerin pozisyonları
+	var perimeter_positions = _get_cell_perimeter_positions(Vector2i(cell_x, cell_y))
 
-		# Sprite sheet'ten doğru renkte solid sprite al
-		if sprite_loader != null:
-			particle.texture = sprite_loader.get_solid_sprite(color)
-		else:
-			# Fallback: ColorRect kullan
-			particle = ColorRect.new()
-			(particle as ColorRect).color = color
-			(particle as ColorRect).size = Vector2(4, 4)
+	print("    Perimeter positions: ", perimeter_positions.size())
 
-		# Bir piksel boyutu: 4 (32/8)
-		# İki piksel boyutunda: 8x8
-		if particle is Sprite2D:
-			particle.scale = Vector2(1.0, 1.0)  # 8x8 -> 8x8 (bir piksel)
-			particle.position = pos - Vector2(4, 4)
-		else:
-			(particle as ColorRect).size = Vector2(8, 8)
-			(particle as ColorRect).position = pos - Vector2(4, 4)
+	for offset_pos in perimeter_positions:
+		var particle = ColorRect.new()
+		particle.size = Vector2(1, 1)  # 1 piksel boyutu
+		particle.position = cell_pos + offset_pos
 
-		particle.z_index = 1000  # Çok yüksek z-index, ön planda olsun
+		# Renk: base renk + hafif varyasyon
+		var color_variation = randf_range(-0.2, 0.2)  # -0.2 ile +0.2 arası değişim
+		var particle_color = Color(
+			clamp(cell_color.r + color_variation, 0.0, 1.0),
+			clamp(cell_color.g + color_variation, 0.0, 1.0),
+			clamp(cell_color.b + color_variation, 0.0, 1.0),
+			1.0
+		)
+		particle.color = particle_color
 
-		# Rastgele yön ve hız
+		particle.z_index = 1000  # Ön planda
+
+		# Rastgele yöne başlangıç hızı
 		var angle = randf() * TAU  # 0-2PI
-		var speed = 100.0 + randf() * 200.0  # 100-300 arası
+		var speed = 50.0 + randf() * 50.0  # 50-100 arası başlangıç hızı
 		var velocity = Vector2(cos(angle), sin(angle)) * speed
 
-		# Kısa yaşam ömrü
-		var lifetime = 0.4 + randf() * 0.3  # 0.4-0.7 saniye
-
-		particle.set_meta("lifetime", lifetime)
 		particle.set_meta("velocity", velocity)
 
 		add_child(particle)
 		block_particles.append(particle)
 
-		# Tween ile animasyon (sadece fade ve scale)
-		var tween = create_tween()
-		tween.set_parallel(true)
-		tween.set_ease(Tween.EASE_OUT)
+# 8x8 hücrenin çevresindeki piksellerin pozisyonlarını döndür (28 pixel)
+func _get_cell_perimeter_positions(cell_pos: Vector2i) -> Array:
+	var positions = []
 
-		# Opacity animasyonu (fade out)
-		tween.tween_property(particle, "modulate:a", 0.0, lifetime)
+	# Üst kenar: (0,0)'dan (7,0)'ya kadar - 8 pixel
+	for x in range(8):
+		positions.append(Vector2(x, 0))
 
-		# Scale animasyonu (küçülerek yok olma)
-		if particle is Sprite2D:
-			tween.tween_property(particle, "scale", Vector2(0, 0), lifetime)
+	# Sağ kenar: (7,1)'den (7,7)'ye kadar - 7 pixel
+	for y in range(1, 8):
+		positions.append(Vector2(7, y))
+
+	# Alt kenar: (6,7)'den (0,7)'ye kadar - 7 pixel
+	for x in range(6, -1, -1):
+		positions.append(Vector2(x, 7))
+
+	# Sol kenar: (0,6)'dan (0,1)'e kadar - 6 pixel
+	for y in range(6, 0, -1):
+		positions.append(Vector2(0, y))
+
+	return positions
+
+# Satır highlight efekti (bembeyaz çizgi)
+func _spawn_line_highlight(row_y: int, grid_offset: Vector2):
+	var highlight = ColorRect.new()
+	highlight.color = Color.WHITE
+	highlight.size = Vector2(80, 8)  # 10 hücre * 8 pixel = 80x8
+	highlight.position = Vector2(0, row_y * 8) + grid_offset
+	highlight.z_index = 999  # Particle'ların hemen arkasında
+
+	add_child(highlight)
+	line_highlights.append(highlight)
+
+	# 0.3 saniye sonra kaldır (daha uzun highlight)
+	var tween = create_tween()
+	tween.set_parallel(false)
+	tween.tween_interval(0.3)  # 300ms bekle
+	tween.tween_callback(func():
+		if is_instance_valid(highlight):
+			highlight.queue_free()
+			line_highlights.erase(highlight)
+	)
 
 # Particle'ları temizle
 func clear_all_particles():
@@ -136,6 +152,11 @@ func clear_all_particles():
 		if is_instance_valid(particle):
 			particle.queue_free()
 	block_particles.clear()
+
+	for highlight in line_highlights:
+		if is_instance_valid(highlight):
+			highlight.queue_free()
+	line_highlights.clear()
 
 # Particle enabled/disable
 func set_particles_enabled(enabled: bool):

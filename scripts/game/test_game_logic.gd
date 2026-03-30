@@ -213,9 +213,9 @@ func _on_piece_locked(positions: Array, colors: Array):
 			adjusted_positions.append(pos + grid_offset)
 
 			if is_overlapped:
-				# Grid pozisyonunu hesapla
-				var grid_x = int(pos.x / 32.0)
-				var grid_y = int(pos.y / 32.0)
+				# Grid pozisyonunu hesapla (8 piksel hücre boyutu)
+				var grid_x = int(pos.x / 8.0)
+				var grid_y = int(pos.y / 8.0)
 
 				# O pozisyondaki karışık rengi al
 				var colors_at_pos = game_manager.get_grid().get_colors_at_position(grid_x, grid_y)
@@ -234,12 +234,10 @@ func _on_piece_placed(player_id: int, layer_index: int, piece: Tetromino):
 func _on_rows_cleared(row_indices: Array, score_gained: int):
 	print("Rows cleared: %s, Score: %d" % [row_indices, score_gained])
 
-	# Particle efekti (beyaz)
+	# Particle efekti (beyaz highlight)
 	if particle_manager != null:
 		var grid_offset = grid_renderer.global_position if grid_renderer != null else Vector2.ZERO
-
-		for row_y in row_indices:
-			particle_manager.spawn_line_clear_particles(row_y, grid_offset)
+		particle_manager.spawn_line_clear_particles(row_indices, grid_offset)
 
 func _on_layer_changed(player_id: int, old_layer: int, new_layer: int):
 	print("Player %d: Layer %d -> %d" % [player_id, old_layer, new_layer])

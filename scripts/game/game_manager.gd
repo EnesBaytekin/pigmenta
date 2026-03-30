@@ -217,10 +217,10 @@ func _lock_piece():
 			if shape[y][x] == 1:
 				grid.set_cell(current_layer_index, pos.x + x, pos.y + y, color)
 
-				# Particle için pozisyon hesapla
+				# Particle için pozisyon hesapla (sol üst köşe)
 				var particle_pos = Vector2(
-					(pos.x + x) * 32 + 16,  # Hücre merkezi
-					(pos.y + y) * 32 + 16
+					(pos.x + x) * 8,  # Hücre sol üst köşe
+					(pos.y + y) * 8
 				)
 				particle_positions.append(particle_pos)
 				particle_colors.append(color)

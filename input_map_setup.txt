@@ -1,0 +1,15 @@
+# Input Map Hazır!
+# Input action'ları project.godot dosyasına tanımlandı.
+
+# Kontrol Şeması:
+# A = Sola hareket (move_left)
+# S = Aşağı hareket (move_down)
+# D = Sağa hareket (move_right)
+# F = Saat yönünde döndür (rotate_cw)
+# G = Saat yönü tersine döndür (rotate_ccw)
+# Escape = Pause/Resume (pause_game)
+# F1 = Restart (restart_game)
+
+# Not: Tuş atamaları project.godot dosyasında [input] section'ında tanımlı.
+# Godot Editör'ünde değiştirmek için: Project > Project Settings > Input Map
+

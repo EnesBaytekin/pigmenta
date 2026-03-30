@@ -47,11 +47,9 @@ func spawn_block_place_particles(positions: Array, colors: Array):
 	if not particles_enabled:
 		return
 
-	print("Particle Manager: Spawning ", positions.size(), " cells")
 	for i in range(positions.size()):
 		var pos = positions[i]
 		var color = colors[i] if i < colors.size() else Color.WHITE
-		print("  Cell ", i, " at ", pos, " color ", color)
 		_spawn_cell_explosion(pos, color)
 
 # Line clear highlight efekti spawn et
@@ -65,16 +63,12 @@ func spawn_line_clear_particles(row_indices: Array, grid_offset: Vector2 = Vecto
 
 # Tek bir hücre için patlama efekti (çevresindeki 28 pixelden particle)
 func _spawn_cell_explosion(cell_pos: Vector2, cell_color: Color):
-	print("    Spawning explosion at ", cell_pos, " color ", cell_color)
-
 	# Cell pozisyonu (hücrenin sol üst köşesi)
 	var cell_x = int(cell_pos.x)
 	var cell_y = int(cell_pos.y)
 
 	# 8x8 hücrenin çevresindeki piksellerin pozisyonları
 	var perimeter_positions = _get_cell_perimeter_positions(Vector2i(cell_x, cell_y))
-
-	print("    Perimeter positions: ", perimeter_positions.size())
 
 	for offset_pos in perimeter_positions:
 		var particle = ColorRect.new()

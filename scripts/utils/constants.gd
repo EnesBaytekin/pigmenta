@@ -15,8 +15,8 @@ const LAYER_COLORS = {
 const DEFAULT_FALL_SPEED = 1.0  # Saniye başına düşme sayısı
 const FAST_FALL_SPEED = 0.1     # Hard drop hız çarpanı
 const LOCK_DELAY = 0.5          # Blok lock bekleme süresi
-const MOVE_DELAY = 0.1          # Hareket tekrar gecikmesi
-const SOFT_DROP_SPEED = 0.05    # Soft drop hızı
+const FIRST_INPUT_DELAY = 0.15  # İlk basışta bekleme süresi
+const REPEAT_INPUT_DELAY = 0.03  # Tekrarlayan basışlar arası bekleme
 
 # Score Sistemi
 const SCORE_SINGLE = 100

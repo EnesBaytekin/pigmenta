@@ -18,6 +18,18 @@ const INTERNAL_HEIGHT = 180
 var move_left_timer: float = 0.0
 var move_right_timer: float = 0.0
 var move_down_timer: float = 0.0
+var rotate_cw_timer: float = 0.0   # Saat yönü rotasyon timer
+var rotate_ccw_timer: float = 0.0  # Saat yönü tersi rotasyon timer
+
+# İlk/tekrar input state'i (her tuş için)
+var move_left_first: bool = true
+var move_right_first: bool = true
+var move_down_first: bool = true
+var rotate_cw_first: bool = true
+var rotate_ccw_first: bool = true
+
+# Spawn sonrası tuş takibi (spawn olduğu anda tuş released sayılır)
+var spawn_happened: bool = false
 
 func _ready():
 	# Camera referansı al
@@ -60,8 +72,8 @@ func _ready():
 	_update_renderer()
 
 	print("Test Game Started!")
-	print("Controls: Arrow Keys to move, Up to rotate CW, PageDown to rotate CCW")
-	print("Space: Hard drop, P: Pause, R: Restart")
+	print("Controls: A=Left, S=Down, D=Right, F=Rotate CW, G=Rotate CCW")
+	print("Escape: Pause/Resume, F1: Restart")
 
 # Camera zoom ayarla (ekran boyutuna göre)
 func _update_camera_zoom():
@@ -98,6 +110,7 @@ func _process(delta):
 		if not game_manager.move_down():
 			# Aşağı hareket edemez -> lock et ve yeni piece spawn et
 			game_manager.spawn_piece()
+			_reset_input_state()  # Yeni blok için input state sıfırla
 
 	# Input timers
 	if move_left_timer > 0:
@@ -106,6 +119,10 @@ func _process(delta):
 		move_right_timer -= delta
 	if move_down_timer > 0:
 		move_down_timer -= delta
+	if rotate_cw_timer > 0:
+		rotate_cw_timer -= delta
+	if rotate_ccw_timer > 0:
+		rotate_ccw_timer -= delta
 
 	# Update oyun mantığı
 	game_manager.update(delta)
@@ -118,63 +135,89 @@ func _input(event):
 		return
 
 	# Pause
-	if event.is_action_pressed("ui_cancel"):
+	if event.is_action_pressed("pause_game"):
 		game_manager.pause()
 		print("Game Paused")
 		return
 
 	# Restart
-	if event.is_action_pressed("ui_text_backspace"):
+	if event.is_action_pressed("restart_game"):
 		_restart_game()
 		return
 
 	if game_manager.is_paused or game_manager.is_game_over:
-		if event.is_action_pressed("ui_cancel"):
+		if event.is_action_pressed("pause_game"):
 			game_manager.resume()
 			print("Game Resumed")
 		return
 
 	# Movement input
-	if event.is_action("ui_left"):
+	if event.is_action("move_left"):
 		if event.is_pressed():
-			if move_left_timer <= 0:
-				if game_manager.move_left():
-					_update_renderer()
-				move_left_timer = Constants.MOVE_DELAY
+			# Spawn sonrası tuş released edilmediyse input kabul etme
+			if not spawn_happened:
+				if move_left_timer <= 0:
+					if game_manager.move_left():
+						_update_renderer()
+					move_left_timer = Constants.FIRST_INPUT_DELAY if move_left_first else Constants.REPEAT_INPUT_DELAY
+					move_left_first = false
+		else:
+			# Tuş bırakıldığında
+			move_left_first = true
+			spawn_happened = false  # Spawn sonrası ilk release
 
-	elif event.is_action("ui_right"):
+	elif event.is_action("move_right"):
 		if event.is_pressed():
-			if move_right_timer <= 0:
-				if game_manager.move_right():
-					_update_renderer()
-				move_right_timer = Constants.MOVE_DELAY
+			if not spawn_happened:
+				if move_right_timer <= 0:
+					if game_manager.move_right():
+						_update_renderer()
+					move_right_timer = Constants.FIRST_INPUT_DELAY if move_right_first else Constants.REPEAT_INPUT_DELAY
+					move_right_first = false
+		else:
+			move_right_first = true
+			spawn_happened = false
 
-	elif event.is_action("ui_down"):
+	elif event.is_action("move_down"):
 		if event.is_pressed():
-			if move_down_timer <= 0:
-				if not game_manager.move_down():
-					# Aşağı hareket edemez -> lock et ve yeni piece spawn et
-					game_manager.spawn_piece()
-				_update_renderer()
-				move_down_timer = Constants.SOFT_DROP_SPEED
+			if not spawn_happened:
+				if move_down_timer <= 0:
+					if not game_manager.move_down():
+						# Aşağı hareket edemez -> lock et ve yeni piece spawn et
+						game_manager.spawn_piece()
+						_reset_input_state()  # Yeni blok için input state sıfırla
+					_update_renderer()
+					move_down_timer = Constants.FIRST_INPUT_DELAY if move_down_first else Constants.REPEAT_INPUT_DELAY
+					move_down_first = false
+		else:
+			move_down_first = true
+			spawn_happened = false
 
 	# Rotation
-	elif event.is_action_pressed("ui_up"):
-		# Saat yönü döndür
-		if game_manager.rotate_cw():
-			_update_renderer()
+	elif event.is_action("rotate_cw"):
+		if event.is_pressed():
+			if not spawn_happened:
+				if rotate_cw_timer <= 0:
+					if game_manager.rotate_cw():
+						_update_renderer()
+					rotate_cw_timer = Constants.FIRST_INPUT_DELAY if rotate_cw_first else Constants.REPEAT_INPUT_DELAY
+					rotate_cw_first = false
+		else:
+			rotate_cw_first = true
+			spawn_happened = false
 
-	# Ters yöne döndür (Page Down tuşu)
-	elif event.is_action_pressed("ui_page_down"):
-		# Saat yönü tersine döndür
-		if game_manager.rotate_ccw():
-			_update_renderer()
-
-	# Hard drop
-	elif event.is_action_pressed("ui_select"):
-		var drop_distance = game_manager.hard_drop()
-		print("Hard drop: %d cells" % drop_distance)
-		_update_renderer()
+	# Ters yöne döndür
+	elif event.is_action("rotate_ccw"):
+		if event.is_pressed():
+			if not spawn_happened:
+				if rotate_ccw_timer <= 0:
+					if game_manager.rotate_ccw():
+						_update_renderer()
+					rotate_ccw_timer = Constants.FIRST_INPUT_DELAY if rotate_ccw_first else Constants.REPEAT_INPUT_DELAY
+					rotate_ccw_first = false
+		else:
+			rotate_ccw_first = true
+			spawn_happened = false
 
 func _update_renderer():
 	if grid_renderer == null or game_manager == null:
@@ -197,8 +240,6 @@ func _update_renderer():
 # Signal handlers
 
 func _on_piece_locked(positions: Array, colors: Array):
-	print("Piece locked! Spawning particles at ", positions.size(), " positions")
-
 	# Particle efekti
 	if particle_manager != null:
 		var grid_offset = grid_renderer.global_position if grid_renderer != null else Vector2.ZERO
@@ -252,6 +293,25 @@ func _on_score_changed(player_id: int, new_score: int):
 
 func _on_player_changed(player_id: int):
 	print("Current player: %d" % player_id)
+
+func _reset_input_state():
+	# Yeni blok spawn olduğunda tüm input state'lerini sıfırla
+	# Timer'ları sıfırla
+	move_left_timer = 0.0
+	move_right_timer = 0.0
+	move_down_timer = 0.0
+	rotate_cw_timer = 0.0
+	rotate_ccw_timer = 0.0
+
+	# İlk basış flag'lerini sıfırla
+	move_left_first = true
+	move_right_first = true
+	move_down_first = true
+	rotate_cw_first = true
+	rotate_ccw_first = true
+
+	# Spawn happened flag'ini true yap (tuşlar released edilene kadar input yok)
+	spawn_happened = true
 
 func _restart_game():
 	print("Restarting game...")

@@ -15,6 +15,14 @@ run/main_scene="res://scenes/game/test_game.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 config/icon="res://icon.svg"
 
+[display]
+
+window/size/viewport_width=320
+window/size/viewport_height=180
+window/size/resizable=true
+window/stretch/mode="viewport"
+window/stretch/aspect="keep"
+
 [autoload]
 
 Constants="*res://scripts/utils/constants.gd"

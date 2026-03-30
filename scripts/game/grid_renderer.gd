@@ -54,8 +54,13 @@ func _process(delta):
 			var sprite = active_piece_sprites[i]
 			var target = target_positions[i]
 			if is_instance_valid(sprite):
-				# Lerp ile yumuşak geçiş (0.2 = hızı, düşük = daha yumuşak)
-				sprite.position = sprite.position.lerp(target, 0.2)
+				# Hedefe yeterince yakınsa direkt at (jiggle önlemek için)
+				var distance = sprite.position.distance_to(target)
+				if distance < 0.5:  # Yarım pikselden yakınsa
+					sprite.position = target
+				else:
+					# Lerp ile yumuşak geçiş
+					sprite.position = sprite.position.lerp(target, 0.3)
 
 # Grid verisini ayarla
 func set_grid_data(data: GridData):
@@ -199,7 +204,7 @@ func _update_cell_overlapped(x: int, y: int):
 		# Hiçbir katmanda blok yok - arkaplan siyah blok göster
 		sprite.texture = sprite_loader.get_background_sprite()
 		sprite.modulate = Color.WHITE
-		sprite.scale = Vector2(4, 4)  # 8x8 -> 32x32
+		sprite.scale = Vector2(1, 1)  # 1:1 çizim
 		sprite.visible = true
 	else:
 		# Renkleri karıştır (RGB additive blending)
@@ -207,7 +212,7 @@ func _update_cell_overlapped(x: int, y: int):
 		# Solid sprite kullan (satır 2 veya 3)
 		sprite.texture = sprite_loader.get_solid_sprite(blended_color)
 		sprite.modulate = Color.WHITE  # Her zaman beyaz, texture'ın kendi rengi
-		sprite.scale = Vector2(4, 4)  # 8x8 -> 32x32
+		sprite.scale = Vector2(1, 1)  # 1:1 çizim
 		sprite.visible = true
 
 # Side-by-side modda hücre güncelle (tek katman)
@@ -225,13 +230,13 @@ func _update_cell_separated(layer_idx: int, x: int, y: int):
 		# Boş hücre - arkaplan siyah blok göster
 		sprite.texture = sprite_loader.get_background_sprite()
 		sprite.modulate = Color.WHITE
-		sprite.scale = Vector2(4, 4)  # 8x8 -> 32x32
+		sprite.scale = Vector2(1, 1)  # 1:1 çizim
 		sprite.visible = true
 	else:
 		# Dolu hücre
 		sprite.texture = sprite_loader.get_solid_sprite(cell_color)
 		sprite.modulate = Color.WHITE  # Modulate'ı resetle
-		sprite.scale = Vector2(4, 4)  # 8x8 -> 32x32
+		sprite.scale = Vector2(1, 1)  # 1:1 çizim
 		sprite.visible = true
 
 # Aktif parçayı güncelle
@@ -274,19 +279,25 @@ func update_active_piece(piece: Tetromino):
 				if sprite_index < active_piece_sprites.size():
 					# Mevcut sprite'ı yeniden kullan
 					sprite = active_piece_sprites[sprite_index]
+					# Sadece hedefe çok uzaksa güncelle (hareket halindeyse güncelleme)
+					var distance = sprite.position.distance_to(target_pos)
+					if distance > 1.0:  # 1 pikseden uzaktaysa güncelle
+						# Texture'ı güncelle
+						if sprite_loader != null:
+							sprite.texture = sprite_loader.get_active_sprite(piece.color)
 				else:
 					# Yeni sprite oluştur
 					sprite = Sprite2D.new()
 					sprite.centered = false
 					sprite.position = target_pos  # Başlangıçta hedefte
-					sprite.scale = Vector2(4, 4)  # 8x8 -> 32x32
+					sprite.scale = Vector2(1, 1)  # 1:1 çizim
 					sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST  # Pixel art
 					add_child(sprite)
 					active_piece_sprites.append(sprite)
 
-				# Aktif sprite kullan (üst 2 satır)
-				if sprite_loader != null:
-					sprite.texture = sprite_loader.get_active_sprite(piece.color)
+					# Aktif sprite kullan (üst 2 satır)
+					if sprite_loader != null:
+						sprite.texture = sprite_loader.get_active_sprite(piece.color)
 
 				sprite_index += 1
 
@@ -313,7 +324,7 @@ func update_ghost_piece(piece: Tetromino):
 					(ghost_pos.x + x) * cell_size.x,
 					(ghost_pos.y + y) * cell_size.y
 				)
-				sprite.scale = Vector2(4, 4)  # 8x8 -> 32x32
+				sprite.scale = Vector2(1, 1)  # 1:1 çizim
 				sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST  # Pixel art
 				sprite.modulate = Color.WHITE
 				sprite.modulate.a = 0.3  # Şeffaf

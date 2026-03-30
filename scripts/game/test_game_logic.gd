@@ -6,8 +6,13 @@ extends Node2D
 var game_manager: GameManager
 var grid_renderer: GridRenderer
 var particle_manager: ParticleManager
+var camera: Camera2D
 
 var fall_timer: float = 0.0
+
+# Internal resolution (16:9 aspect ratio)
+const INTERNAL_WIDTH = 320
+const INTERNAL_HEIGHT = 180
 
 # Input kontrol
 var move_left_timer: float = 0.0
@@ -15,6 +20,15 @@ var move_right_timer: float = 0.0
 var move_down_timer: float = 0.0
 
 func _ready():
+	# Camera referansı al
+	camera = $Camera2D
+
+	# Ekran boyutuna göre camera zoom ayarla
+	_update_camera_zoom()
+
+	# Window resize eventi için bağlantı kur
+	get_tree().root.size_changed.connect(_on_window_resize)
+
 	# GameManager oluştur
 	game_manager = GameManager.new()
 	game_manager.start_game(3, 1)  # 3 katman, 1 oyuncu
@@ -32,7 +46,7 @@ func _ready():
 	var renderer_node = $GridRenderer
 	grid_renderer = GridRenderer.new()
 	grid_renderer.set_grid_data(game_manager.get_grid())
-	grid_renderer.set_cell_size(Vector2(32, 32))
+	grid_renderer.set_cell_size(Vector2(8, 8))  # 1:1 çizim, scale yok
 	grid_renderer.set_view_mode(Constants.ViewMode.OVERLAPPED)
 	grid_renderer.set_layer_colors(Constants.get_layer_colors(3))
 
@@ -48,6 +62,27 @@ func _ready():
 	print("Test Game Started!")
 	print("Controls: Arrow Keys to move, Up to rotate CW, PageDown to rotate CCW")
 	print("Space: Hard drop, P: Pause, R: Restart")
+
+# Camera zoom ayarla (ekran boyutuna göre)
+func _update_camera_zoom():
+	if camera == null:
+		return
+
+	var viewport_size = get_viewport().get_visible_rect().size
+
+	# Zoom faktörünü hesapla (ekran boyutuna göre)
+	var zoom_x = viewport_size.x / INTERNAL_WIDTH
+	var zoom_y = viewport_size.y / INTERNAL_HEIGHT
+
+	# Daha küçük zoom'ı seç (aspect ratio'yu korumak için)
+	var zoom_factor = min(zoom_x, zoom_y)
+
+	camera.zoom = Vector2(zoom_factor, zoom_factor)
+	print("Viewport: ", viewport_size, " Zoom: ", camera.zoom)
+
+# Window resize callback
+func _on_window_resize():
+	_update_camera_zoom()
 
 func _process(delta):
 	if game_manager == null or game_manager.is_game_over:

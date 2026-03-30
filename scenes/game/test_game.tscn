@@ -6,8 +6,9 @@
 script = ExtResource("1_abcde")
 
 [node name="Camera2D" type="Camera2D" parent="."]
-position = Vector2(160, 320)
+position = Vector2(40, 80)
 zoom = Vector2(1, 1)
+enabled = true
 
 [node name="GridRenderer" type="Node2D" parent="."]
 position = Vector2(0, 0)

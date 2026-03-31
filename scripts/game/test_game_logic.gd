@@ -35,6 +35,10 @@ func _ready():
 	# Camera referansı al
 	camera = $Camera2D
 
+	# Debug: Input delay değerlerini yazdır
+	print("FIRST_INPUT_DELAY: ", Constants.FIRST_INPUT_DELAY)
+	print("REPEAT_INPUT_DELAY: ", Constants.REPEAT_INPUT_DELAY)
+
 	# Ekran boyutuna göre camera zoom ayarla
 	_update_camera_zoom()
 
@@ -112,23 +116,67 @@ func _process(delta):
 			game_manager.spawn_piece()
 			_reset_input_state()  # Yeni blok için input state sıfırla
 
-	# Input timers
-	if move_left_timer > 0:
-		move_left_timer -= delta
-	if move_right_timer > 0:
-		move_right_timer -= delta
-	if move_down_timer > 0:
-		move_down_timer -= delta
-	if rotate_cw_timer > 0:
-		rotate_cw_timer -= delta
-	if rotate_ccw_timer > 0:
-		rotate_ccw_timer -= delta
+	# Input timers - azalt ve expire olursa hareket et
+	_move_left_timer_process(delta)
+	_move_right_timer_process(delta)
+	_move_down_timer_process(delta)
+	_rotate_cw_timer_process(delta)
+	_rotate_ccw_timer_process(delta)
 
 	# Update oyun mantığı
 	game_manager.update(delta)
 
 	# Renderer'ı güncelle
 	_update_renderer()
+
+# Timer process fonksiyonları
+func _move_left_timer_process(delta):
+	if move_left_timer > 0:
+		move_left_timer -= delta
+		if move_left_timer <= 0 and Input.is_action_pressed("move_left") and not spawn_happened:
+			# Timer expire oldu ve tuş hala basılı, hareket et
+			if game_manager.move_left():
+				_update_renderer()
+			move_left_timer = Constants.REPEAT_INPUT_DELAY
+			move_left_first = false
+
+func _move_right_timer_process(delta):
+	if move_right_timer > 0:
+		move_right_timer -= delta
+		if move_right_timer <= 0 and Input.is_action_pressed("move_right") and not spawn_happened:
+			if game_manager.move_right():
+				_update_renderer()
+			move_right_timer = Constants.REPEAT_INPUT_DELAY
+			move_right_first = false
+
+func _move_down_timer_process(delta):
+	if move_down_timer > 0:
+		move_down_timer -= delta
+		if move_down_timer <= 0 and Input.is_action_pressed("move_down") and not spawn_happened:
+			if not game_manager.move_down():
+				game_manager.spawn_piece()
+				_reset_input_state()
+			_update_renderer()
+			move_down_timer = Constants.REPEAT_INPUT_DELAY
+			move_down_first = false
+
+func _rotate_cw_timer_process(delta):
+	if rotate_cw_timer > 0:
+		rotate_cw_timer -= delta
+		if rotate_cw_timer <= 0 and Input.is_action_pressed("rotate_cw") and not spawn_happened:
+			if game_manager.rotate_cw():
+				_update_renderer()
+			rotate_cw_timer = Constants.REPEAT_INPUT_DELAY
+			rotate_cw_first = false
+
+func _rotate_ccw_timer_process(delta):
+	if rotate_ccw_timer > 0:
+		rotate_ccw_timer -= delta
+		if rotate_ccw_timer <= 0 and Input.is_action_pressed("rotate_ccw") and not spawn_happened:
+			if game_manager.rotate_ccw():
+				_update_renderer()
+			rotate_ccw_timer = Constants.REPEAT_INPUT_DELAY
+			rotate_ccw_first = false
 
 func _input(event):
 	if game_manager == null:
@@ -155,12 +203,12 @@ func _input(event):
 	if event.is_action("move_left"):
 		if event.is_pressed():
 			# Spawn sonrası tuş released edilmediyse input kabul etme
-			if not spawn_happened:
-				if move_left_timer <= 0:
-					if game_manager.move_left():
-						_update_renderer()
-					move_left_timer = Constants.FIRST_INPUT_DELAY if move_left_first else Constants.REPEAT_INPUT_DELAY
-					move_left_first = false
+			if not spawn_happened and move_left_timer <= 0:
+				# İlk basış - hemen çalış ve timer başlat
+				if game_manager.move_left():
+					_update_renderer()
+				move_left_timer = Constants.FIRST_INPUT_DELAY
+				move_left_first = false
 		else:
 			# Tuş bırakıldığında
 			move_left_first = true
@@ -168,27 +216,25 @@ func _input(event):
 
 	elif event.is_action("move_right"):
 		if event.is_pressed():
-			if not spawn_happened:
-				if move_right_timer <= 0:
-					if game_manager.move_right():
-						_update_renderer()
-					move_right_timer = Constants.FIRST_INPUT_DELAY if move_right_first else Constants.REPEAT_INPUT_DELAY
-					move_right_first = false
+			if not spawn_happened and move_right_timer <= 0:
+				if game_manager.move_right():
+					_update_renderer()
+				move_right_timer = Constants.FIRST_INPUT_DELAY
+				move_right_first = false
 		else:
 			move_right_first = true
 			spawn_happened = false
 
 	elif event.is_action("move_down"):
 		if event.is_pressed():
-			if not spawn_happened:
-				if move_down_timer <= 0:
-					if not game_manager.move_down():
-						# Aşağı hareket edemez -> lock et ve yeni piece spawn et
-						game_manager.spawn_piece()
-						_reset_input_state()  # Yeni blok için input state sıfırla
-					_update_renderer()
-					move_down_timer = Constants.FIRST_INPUT_DELAY if move_down_first else Constants.REPEAT_INPUT_DELAY
-					move_down_first = false
+			if not spawn_happened and move_down_timer <= 0:
+				if not game_manager.move_down():
+					# Aşağı hareket edemez -> lock et ve yeni piece spawn et
+					game_manager.spawn_piece()
+					_reset_input_state()  # Yeni blok için input state sıfırla
+				_update_renderer()
+				move_down_timer = Constants.FIRST_INPUT_DELAY
+				move_down_first = false
 		else:
 			move_down_first = true
 			spawn_happened = false
@@ -196,12 +242,11 @@ func _input(event):
 	# Rotation
 	elif event.is_action("rotate_cw"):
 		if event.is_pressed():
-			if not spawn_happened:
-				if rotate_cw_timer <= 0:
-					if game_manager.rotate_cw():
-						_update_renderer()
-					rotate_cw_timer = Constants.FIRST_INPUT_DELAY if rotate_cw_first else Constants.REPEAT_INPUT_DELAY
-					rotate_cw_first = false
+			if not spawn_happened and rotate_cw_timer <= 0:
+				if game_manager.rotate_cw():
+					_update_renderer()
+				rotate_cw_timer = Constants.FIRST_INPUT_DELAY
+				rotate_cw_first = false
 		else:
 			rotate_cw_first = true
 			spawn_happened = false
@@ -209,12 +254,11 @@ func _input(event):
 	# Ters yöne döndür
 	elif event.is_action("rotate_ccw"):
 		if event.is_pressed():
-			if not spawn_happened:
-				if rotate_ccw_timer <= 0:
-					if game_manager.rotate_ccw():
-						_update_renderer()
-					rotate_ccw_timer = Constants.FIRST_INPUT_DELAY if rotate_ccw_first else Constants.REPEAT_INPUT_DELAY
-					rotate_ccw_first = false
+			if not spawn_happened and rotate_ccw_timer <= 0:
+				if game_manager.rotate_ccw():
+					_update_renderer()
+				rotate_ccw_timer = Constants.FIRST_INPUT_DELAY
+				rotate_ccw_first = false
 		else:
 			rotate_ccw_first = true
 			spawn_happened = false

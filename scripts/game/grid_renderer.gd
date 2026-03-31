@@ -56,11 +56,12 @@ func _process(delta):
 			if is_instance_valid(sprite):
 				# Hedefe yeterince yakınsa direkt at (jiggle önlemek için)
 				var distance = sprite.position.distance_to(target)
-				if distance < 0.5:  # Yarım pikselden yakınsa
+				if distance < 1.0:  # 1 pikselden yakınsa
 					sprite.position = target
 				else:
-					# Lerp ile yumuşak geçiş
-					sprite.position = sprite.position.lerp(target, 0.3)
+					# Mesafe kadar dinamik lerp (uzaksa daha hızlı)
+					var lerp_factor = clamp(0.4 + distance * 0.1, 0.4, 0.8)
+					sprite.position = sprite.position.lerp(target, lerp_factor)
 
 # Grid verisini ayarla
 func set_grid_data(data: GridData):

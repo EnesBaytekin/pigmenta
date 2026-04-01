@@ -156,6 +156,9 @@ func _move_down_timer_process(delta):
 			if not game_manager.move_down():
 				game_manager.spawn_piece()
 				_reset_input_state()
+			else:
+				# Başarılı movement - fall timer'ı sıfırla
+				fall_timer = 0.0
 			_update_renderer()
 			move_down_timer = Constants.REPEAT_INPUT_DELAY
 			move_down_first = false
@@ -232,6 +235,9 @@ func _input(event):
 					# Aşağı hareket edemez -> lock et ve yeni piece spawn et
 					game_manager.spawn_piece()
 					_reset_input_state()  # Yeni blok için input state sıfırla
+				else:
+					# Başarılı movement - fall timer'ı sıfırla
+					fall_timer = 0.0
 				_update_renderer()
 				move_down_timer = Constants.FIRST_INPUT_DELAY
 				move_down_first = false

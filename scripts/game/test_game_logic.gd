@@ -213,9 +213,10 @@ func _input(event):
 				move_left_timer = Constants.FIRST_INPUT_DELAY
 				move_left_first = false
 		else:
-			# Tuş bırakıldığında
+			# Tuş bırakıldığında - her şeyi sıfırla
 			move_left_first = true
-			spawn_happened = false  # Spawn sonrası ilk release
+			move_left_timer = 0.0
+			spawn_happened = false
 
 	elif event.is_action("move_right"):
 		if event.is_pressed():
@@ -226,6 +227,7 @@ func _input(event):
 				move_right_first = false
 		else:
 			move_right_first = true
+			move_right_timer = 0.0
 			spawn_happened = false
 
 	elif event.is_action("move_down"):
@@ -243,6 +245,7 @@ func _input(event):
 				move_down_first = false
 		else:
 			move_down_first = true
+			move_down_timer = 0.0
 			spawn_happened = false
 
 	# Rotation
@@ -255,6 +258,7 @@ func _input(event):
 				rotate_cw_first = false
 		else:
 			rotate_cw_first = true
+			rotate_cw_timer = 0.0
 			spawn_happened = false
 
 	# Ters yöne döndür
@@ -267,6 +271,7 @@ func _input(event):
 				rotate_ccw_first = false
 		else:
 			rotate_ccw_first = true
+			rotate_ccw_timer = 0.0
 			spawn_happened = false
 
 func _update_renderer():

@@ -30,6 +30,7 @@ var cell_sprites: Array = []  # 3D array: [layer][y][x]
 # Next piece preview
 var preview_cell_sprites: Array = []  # 3D array: [layer][y][x]
 var preview_grid_size: Vector2i = Vector2i(4, 4)  # Preview grid boyutu
+var preview_cell_size: Vector2 = Vector2(4, 4)  # Preview hücre boyutu (ana gridden daha küçük)
 var preview_backgrounds: Array = []  # Her preview için arka plan ColorRect
 
 # Ghost piece
@@ -45,8 +46,10 @@ var layer_colors: Array = []
 # Aktif katman (side-by-side modda piece positioning için)
 var current_layer_idx: int = 0
 
-# Highlight (aktif katman için)
-var layer_highlight: ColorRect
+# Highlight (aktif katman için) - çerçeve
+var layer_highlight: Node2D
+var layer_highlight_color: Color = Color.WHITE
+var layer_highlight_rect: Rect2 = Rect2()
 
 func _ready():
 	# Sprite sheet loader oluştur
@@ -55,6 +58,16 @@ func _ready():
 
 	_create_grid_background()
 	_create_layer_highlight()
+
+func _draw():
+	# Layer highlight çerçevesini çiz
+	if layer_highlight != null and layer_highlight.visible:
+		var rect = layer_highlight_rect
+		# 1 pixel çizgilerle çerçeve çiz
+		draw_line(rect.position, rect.position + Vector2(rect.size.x, 0), layer_highlight_color, 1.0)  # Üst
+		draw_line(rect.position + Vector2(rect.size.x, 0), rect.position + rect.size, layer_highlight_color, 1.0)  # Sağ
+		draw_line(rect.position + rect.size, rect.position + Vector2(0, rect.size.y), layer_highlight_color, 1.0)  # Alt
+		draw_line(rect.position + Vector2(0, rect.size.y), rect.position, layer_highlight_color, 1.0)  # Sol
 
 func _process(delta):
 	# Smooth animasyon - hedef pozisyonlara lerp
@@ -113,8 +126,7 @@ func _create_grid_background():
 
 # Layer highlight (aktif katmanın çerçevesi)
 func _create_layer_highlight():
-	layer_highlight = ColorRect.new()
-	layer_highlight.color = Color.TRANSPARENT
+	layer_highlight = Node2D.new()
 	layer_highlight.z_index = 100
 	add_child(layer_highlight)
 
@@ -192,7 +204,7 @@ func _update_layout():
 	# Grid boyutunu hesapla
 	var grid_width = grid_size.x * cell_size.x
 	var grid_height = grid_size.y * cell_size.y
-	var preview_width = preview_grid_size.x * cell_size.x
+	var preview_width = preview_grid_size.x * preview_cell_size.x
 
 	# Her "unit" = grid + spacing + preview
 	var unit_width = grid_width + 4 + preview_width  # 4px spacing between grid and preview
@@ -215,15 +227,9 @@ func _update_layout():
 
 	# Ortalamak için base offset hesapla (parent node pozisyonu zaten (120, 10), onu dikkate al)
 	# Ekran genişliği 320, parent (120, 10) konumunda
-	# Tek grid için parent zaten uygun, ama multiple grid için offset gerekli
-	var base_offset_x = 0.0
-	if view_mode == Constants.ViewMode.SIDE_BY_SIDE:
-		# Ortalamak için parent pozisyonundan offset hesapla
-		# Parent (120, 10) tek grid için optimize edilmiş (320/2 - 80/2 = 120)
-		# Şimdi total_width için ortalama hesapla
-		var ideal_start = (320 - total_width) / 2.0  # Ekranda ideal başlangıç
-		var current_parent = 120.0  # Parent pozisyonu (scene'den)
-		base_offset_x = ideal_start - current_parent
+	var ideal_start = (320 - total_width) / 2.0  # Ekranda ideal başlangıç
+	var current_parent = 120.0  # Parent pozisyonu (scene'den)
+	var base_offset_x = ideal_start - current_parent
 
 	# Arkaplanları ayarla
 	if grid_background != null:
@@ -292,7 +298,7 @@ func _update_layout():
 			if layer_idx < preview_backgrounds.size():
 				var bg = preview_backgrounds[layer_idx]
 				bg.position = Vector2(preview_x, preview_y)
-				bg.size = Vector2(preview_grid_size.x * cell_size.x, preview_grid_size.y * cell_size.y)
+				bg.size = Vector2(preview_grid_size.x * preview_cell_size.x, preview_grid_size.y * preview_cell_size.y)
 				bg.visible = (view_mode == Constants.ViewMode.SIDE_BY_SIDE) or (view_mode == Constants.ViewMode.OVERLAPPED and layer_idx == 0)
 
 			# Preview sprite'ları
@@ -302,8 +308,8 @@ func _update_layout():
 						if y < preview_cell_sprites[layer_idx].size() and x < preview_cell_sprites[layer_idx][y].size():
 							var sprite: Sprite2D = preview_cell_sprites[layer_idx][y][x]
 							sprite.position = Vector2(
-								preview_x + x * cell_size.x,
-								preview_y + y * cell_size.y
+								preview_x + x * preview_cell_size.x,
+								preview_y + y * preview_cell_size.y
 							)
 							sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
@@ -406,7 +412,7 @@ func update_active_piece(piece: Tetromino):
 
 	# Layer offset hesapla (layout ile tutarlı)
 	var grid_width = grid_size.x * cell_size.x
-	var preview_width = preview_grid_size.x * cell_size.x
+	var preview_width = preview_grid_size.x * preview_cell_size.x
 	var unit_width = grid_width + 4 + preview_width
 
 	var grid_spacing = 20
@@ -479,7 +485,7 @@ func update_ghost_piece(piece: Tetromino):
 
 	# Layer offset hesapla (layout ile tutarlı)
 	var grid_width = grid_size.x * cell_size.x
-	var preview_width = preview_grid_size.x * cell_size.x
+	var preview_width = preview_grid_size.x * preview_cell_size.x
 	var unit_width = grid_width + 4 + preview_width
 
 	var grid_spacing = 20
@@ -562,7 +568,7 @@ func update_next_preview(layer_idx: int, piece_type: Constants.TetrominoType, pi
 						var sprite: Sprite2D = preview_cell_sprites[layer_idx][preview_y][preview_x]
 						sprite.texture = sprite_loader.get_solid_sprite(piece_color)
 						sprite.modulate = Color.WHITE
-						sprite.scale = Vector2(1, 1)
+						sprite.scale = Vector2(0.5, 0.5)  # 4x4 için 8x8 texture'ı küçült
 						sprite.visible = true
 
 # Aktif katmanı vurgula
@@ -572,7 +578,7 @@ func highlight_layer(layer_idx: int, color: Color = Color.WHITE):
 			# Layout hesaplamaları (tutarlı olması için)
 			var grid_width = grid_size.x * cell_size.x
 			var grid_height = grid_size.y * cell_size.y
-			var preview_width = preview_grid_size.x * cell_size.x
+			var preview_width = preview_grid_size.x * preview_cell_size.x
 			var unit_width = grid_width + 4 + preview_width
 
 			var grid_spacing = 20
@@ -591,17 +597,18 @@ func highlight_layer(layer_idx: int, color: Color = Color.WHITE):
 			var current_parent = 120.0
 			var base_offset_x = ideal_start - current_parent
 
-			layer_highlight.color = color
-			layer_highlight.color.a = 0.3  # Şeffaf highlight
-			layer_highlight.position = Vector2(
-				base_offset_x + layer_idx * (unit_width + grid_spacing),
-				0
+			# Çerçeve rengi ve pozisyonu ayarla
+			layer_highlight_color = color
+			layer_highlight_rect = Rect2(
+				Vector2(base_offset_x + layer_idx * (unit_width + grid_spacing), 0),
+				Vector2(grid_width, grid_height)
 			)
-			layer_highlight.size = Vector2(grid_width, grid_height)
 			layer_highlight.visible = true
+			queue_redraw()  # Çerçeveyi yeniden çiz
 	else:
 		if layer_highlight != null:
 			layer_highlight.visible = false
+			queue_redraw()
 
 # Sprite temizleme fonksiyonları
 func _clear_all_sprites():

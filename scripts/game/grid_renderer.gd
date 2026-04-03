@@ -582,6 +582,21 @@ func update_next_preview(layer_idx: int, piece_type: Constants.TetrominoType, pi
 						sprite.scale = Vector2(0.5, 0.5)  # 4x4 için 8x8 texture'ı küçült
 						sprite.visible = true
 
+# Helper: Layer'ın dünya offset'ini al (particle'lar için)
+func get_layer_world_offset(layer_idx: int) -> Vector2:
+	var offset_x = cached_base_offset_x
+	if view_mode == Constants.ViewMode.SIDE_BY_SIDE and layer_idx >= 0:
+		offset_x = cached_base_offset_x + layer_idx * (cached_unit_width + cached_grid_spacing)
+	return Vector2(offset_x, 0) + global_position
+
+# Helper: Görünür layer sayısını al
+func get_visible_layer_count() -> int:
+	if view_mode == Constants.ViewMode.OVERLAPPED:
+		return 1
+	elif grid_data != null:
+		return grid_data.layer_count
+	return 1
+
 # Aktif katmanı vurgula
 func highlight_layer(layer_idx: int, color: Color = Color.WHITE):
 	if view_mode == Constants.ViewMode.SIDE_BY_SIDE:

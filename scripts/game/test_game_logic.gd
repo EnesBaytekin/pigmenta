@@ -323,8 +323,13 @@ func _update_renderer():
 
 func _on_piece_locked(positions: Array, colors: Array):
 	# Particle efekti
-	if particle_manager != null:
-		var grid_offset = grid_renderer.global_position if grid_renderer != null else Vector2.ZERO
+	if particle_manager != null and grid_renderer != null:
+		# Hangi layer'a konuldu?
+		var current_layer_idx = game_manager.get_current_layer_index()
+
+		# O layer'ın dünya offset'ini al
+		var layer_offset = grid_renderer.get_layer_world_offset(current_layer_idx)
+
 		var adjusted_positions = []
 		var particle_colors = []
 
@@ -333,7 +338,7 @@ func _on_piece_locked(positions: Array, colors: Array):
 
 		for i in range(positions.size()):
 			var pos = positions[i]
-			adjusted_positions.append(pos + grid_offset)
+			adjusted_positions.append(pos + layer_offset)
 
 			if is_overlapped:
 				# Grid pozisyonunu hesapla (8 piksel hücre boyutu)
@@ -345,7 +350,7 @@ func _on_piece_locked(positions: Array, colors: Array):
 				var blended_color = Constants.blend_colors(colors_at_pos)
 				particle_colors.append(blended_color)
 			else:
-				# Side-by-side modda normal renk
+				# Side-by-side modda layer'ın kendi rengi (blend etme!)
 				particle_colors.append(colors[i])
 
 		particle_manager.spawn_block_place_particles(adjusted_positions, particle_colors)
@@ -357,10 +362,14 @@ func _on_piece_placed(player_id: int, layer_index: int, piece: Tetromino):
 func _on_rows_cleared(row_indices: Array, score_gained: int):
 	print("Rows cleared: %s, Score: %d" % [row_indices, score_gained])
 
-	# Particle efekti (beyaz highlight)
-	if particle_manager != null:
-		var grid_offset = grid_renderer.global_position if grid_renderer != null else Vector2.ZERO
-		particle_manager.spawn_line_clear_particles(row_indices, grid_offset)
+	# Particle efekti (beyaz highlight) - tüm görünür gridlerde
+	if particle_manager != null and grid_renderer != null:
+		var visible_layer_count = grid_renderer.get_visible_layer_count()
+
+		# Her görünür layer için particle spawn et
+		for layer_idx in range(visible_layer_count):
+			var layer_offset = grid_renderer.get_layer_world_offset(layer_idx)
+			particle_manager.spawn_line_clear_particles(row_indices, layer_offset)
 
 func _on_layer_changed(player_id: int, old_layer: int, new_layer: int):
 	print("Player %d: Layer %d -> %d" % [player_id, old_layer, new_layer])

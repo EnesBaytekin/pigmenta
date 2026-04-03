@@ -21,10 +21,16 @@ var sprite_loader: SpriteSheetLoader
 
 # Texture'lar
 var block_texture: Texture2D
-var grid_background: ColorRect
+var grid_background: ColorRect  # Overlapped mod için tek background
+var grid_backgrounds: Array = []  # Side-by-side mod için her layer'a bir background
 
 # Sprite container (her hücre için)
 var cell_sprites: Array = []  # 3D array: [layer][y][x]
+
+# Next piece preview
+var preview_cell_sprites: Array = []  # 3D array: [layer][y][x]
+var preview_grid_size: Vector2i = Vector2i(4, 4)  # Preview grid boyutu
+var preview_backgrounds: Array = []  # Her preview için arka plan ColorRect
 
 # Ghost piece
 var ghost_sprites: Array = []
@@ -35,6 +41,9 @@ var target_positions: Array = []  # Hedef pozisyonlar
 
 # Layer colors (highlight için)
 var layer_colors: Array = []
+
+# Aktif katman (side-by-side modda piece positioning için)
+var current_layer_idx: int = 0
 
 # Highlight (aktif katman için)
 var layer_highlight: ColorRect
@@ -68,6 +77,7 @@ func set_grid_data(data: GridData):
 	grid_data = data
 	grid_size = Vector2i(data.width, data.height)
 	_create_cell_sprites()  # Grid verisi geldiğinde sprite'ları oluştur
+	_create_preview_sprites()  # Preview sprite'larını oluştur
 	_update_layout()
 
 # Görünüm modunu ayarla
@@ -84,6 +94,10 @@ func set_cell_size(size: Vector2):
 func set_layer_colors(colors: Array):
 	layer_colors = colors
 	_update_all_cells()
+
+# Aktif katmanı ayarla (side-by-side modda piece positioning için)
+func set_current_layer(layer_idx: int):
+	current_layer_idx = layer_idx
 
 # Ghost göster/gizle
 func set_show_ghost(show: bool):
@@ -110,6 +124,7 @@ func _create_cell_sprites():
 	_clear_cell_sprites()
 
 	cell_sprites.clear()
+	grid_backgrounds.clear()
 
 	if grid_data == null:
 		return
@@ -117,6 +132,14 @@ func _create_cell_sprites():
 	var total_layers = grid_data.layer_count
 
 	for layer_idx in range(total_layers):
+		# Her layer için background oluştur
+		var bg = ColorRect.new()
+		bg.color = Color(0.1, 0.1, 0.1, 0.8)
+		bg.z_index = -10
+		add_child(bg)
+		grid_backgrounds.append(bg)
+
+		# Cell sprite'ları
 		var layer_array = []
 		for y in range(grid_size.y):
 			var row_array = []
@@ -129,21 +152,110 @@ func _create_cell_sprites():
 			layer_array.append(row_array)
 		cell_sprites.append(layer_array)
 
+# Preview sprite'larını oluştur
+func _create_preview_sprites():
+	# Önceki sprite'ları temizle
+	_clear_preview_sprites()
+
+	preview_cell_sprites.clear()
+	preview_backgrounds.clear()
+
+	if grid_data == null:
+		return
+
+	var total_layers = grid_data.layer_count
+
+	for layer_idx in range(total_layers):
+		# Her layer için preview arka planı oluştur
+		var bg = ColorRect.new()
+		bg.color = Color(0.05, 0.05, 0.05, 0.9)  # Daha koyu arka plan
+		bg.z_index = -9  # Cell sprite'larının altında
+		add_child(bg)
+		preview_backgrounds.append(bg)
+
+		# Preview sprite'ları oluştur
+		var layer_array = []
+		for y in range(preview_grid_size.y):
+			var row_array = []
+			for x in range(preview_grid_size.x):
+				var sprite = Sprite2D.new()
+				sprite.centered = false
+				sprite.visible = false
+				sprite.z_index = 5  # Normal cell'lerin üstünde
+				add_child(sprite)
+				row_array.append(sprite)
+			layer_array.append(row_array)
+		preview_cell_sprites.append(layer_array)
+
 # Layout'u güncelle
 func _update_layout():
 	# Grid boyutunu hesapla
 	var grid_width = grid_size.x * cell_size.x
 	var grid_height = grid_size.y * cell_size.y
+	var preview_width = preview_grid_size.x * cell_size.x
 
-	# Arkaplanı ayarla
+	# Her "unit" = grid + spacing + preview
+	var unit_width = grid_width + 4 + preview_width  # 4px spacing between grid and preview
+
+	# Layer sayısına göre toplam genişliği ve spacing'i hesapla
+	var total_layers = 1  # Overlapped modda her zaman 1
+	if view_mode == Constants.ViewMode.SIDE_BY_SIDE:
+		total_layers = grid_data.layer_count if grid_data != null else 1
+
+	var grid_spacing = 20  # Gridler arası spacing (side-by-side modda)
+
+	# Layer sayısına göre spacing'i ayarla (3 layer için daha dar)
+	if total_layers == 3:
+		grid_spacing = 8  # Daha dar spacing
+	elif total_layers == 2:
+		grid_spacing = 20
+
+	# Toplam genişlik hesapla
+	var total_width = total_layers * unit_width + (total_layers - 1) * grid_spacing
+
+	# Ortalamak için base offset hesapla (parent node pozisyonu zaten (120, 10), onu dikkate al)
+	# Ekran genişliği 320, parent (120, 10) konumunda
+	# Tek grid için parent zaten uygun, ama multiple grid için offset gerekli
+	var base_offset_x = 0.0
+	if view_mode == Constants.ViewMode.SIDE_BY_SIDE:
+		# Ortalamak için parent pozisyonundan offset hesapla
+		# Parent (120, 10) tek grid için optimize edilmiş (320/2 - 80/2 = 120)
+		# Şimdi total_width için ortalama hesapla
+		var ideal_start = (320 - total_width) / 2.0  # Ekranda ideal başlangıç
+		var current_parent = 120.0  # Parent pozisyonu (scene'den)
+		base_offset_x = ideal_start - current_parent
+
+	# Arkaplanları ayarla
 	if grid_background != null:
-		grid_background.size = Vector2(grid_width, grid_height)
-		grid_background.position = Vector2.ZERO
+		if view_mode == Constants.ViewMode.OVERLAPPED:
+			grid_background.size = Vector2(grid_width, grid_height)
+			grid_background.position = Vector2(base_offset_x, 0)
+			grid_background.visible = true
+		else:
+			grid_background.visible = false
+
+	# Side-by-side modda her grid için background
+	if grid_data != null:
+		for layer_idx in range(grid_data.layer_count):
+			if layer_idx < grid_backgrounds.size():
+				var bg = grid_backgrounds[layer_idx]
+				if view_mode == Constants.ViewMode.SIDE_BY_SIDE:
+					var layer_offset_x = base_offset_x + layer_idx * (unit_width + grid_spacing)
+					bg.position = Vector2(layer_offset_x, 0)
+					bg.size = Vector2(grid_width, grid_height)
+					bg.visible = true
+				else:
+					bg.visible = false
 
 	# Hücreleri konumlandır ve görünürlük ayarla
 	if grid_data != null:
 		for layer_idx in range(grid_data.layer_count):
 			var is_visible = (view_mode == Constants.ViewMode.SIDE_BY_SIDE) or (view_mode == Constants.ViewMode.OVERLAPPED and layer_idx == 0)
+
+			# Bu layer için offset hesapla
+			var layer_offset_x = base_offset_x
+			if view_mode == Constants.ViewMode.SIDE_BY_SIDE:
+				layer_offset_x = base_offset_x + layer_idx * (unit_width + grid_spacing)
 
 			for y in range(grid_size.y):
 				for x in range(grid_size.x):
@@ -153,20 +265,47 @@ func _update_layout():
 						# Pixel art için texture filter'ı kapat
 						sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
-						# Overlapped mod: hepsi aynı pozisyonda, side-by-side: yan yana
-						if view_mode == Constants.ViewMode.OVERLAPPED:
-							sprite.position = Vector2(x * cell_size.x, y * cell_size.y)
-						else:  # SIDE_BY_SIDE
-							sprite.position = Vector2(
-								layer_idx * (grid_width + 20) + x * cell_size.x,  # 20px spacing
-								y * cell_size.y
-							)
+						# Pozisyon ayarla
+						sprite.position = Vector2(
+							layer_offset_x + x * cell_size.x,
+							y * cell_size.y
+						)
 
 						# Görünürlük ayarla
 						if layer_idx == 0 or view_mode == Constants.ViewMode.SIDE_BY_SIDE:
 							sprite.visible = is_visible
 						else:
 							sprite.visible = false  # Overlapped modda sadece ilk katman
+
+	# Preview grid'lerini konumlandır
+	if grid_data != null:
+		for layer_idx in range(grid_data.layer_count):
+			# Bu layer için offset hesapla
+			var layer_offset_x = base_offset_x
+			if view_mode == Constants.ViewMode.SIDE_BY_SIDE:
+				layer_offset_x = base_offset_x + layer_idx * (unit_width + grid_spacing)
+
+			var preview_x = layer_offset_x + grid_width + 4  # Ana grid'in sağında, 4px boşluk
+			var preview_y = 0
+
+			# Preview arka planı
+			if layer_idx < preview_backgrounds.size():
+				var bg = preview_backgrounds[layer_idx]
+				bg.position = Vector2(preview_x, preview_y)
+				bg.size = Vector2(preview_grid_size.x * cell_size.x, preview_grid_size.y * cell_size.y)
+				bg.visible = (view_mode == Constants.ViewMode.SIDE_BY_SIDE) or (view_mode == Constants.ViewMode.OVERLAPPED and layer_idx == 0)
+
+			# Preview sprite'ları
+			if layer_idx < preview_cell_sprites.size():
+				for y in range(preview_grid_size.y):
+					for x in range(preview_grid_size.x):
+						if y < preview_cell_sprites[layer_idx].size() and x < preview_cell_sprites[layer_idx][y].size():
+							var sprite: Sprite2D = preview_cell_sprites[layer_idx][y][x]
+							sprite.position = Vector2(
+								preview_x + x * cell_size.x,
+								preview_y + y * cell_size.y
+							)
+							sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 
 	# Hücreleri güncelle
 	_update_all_cells()
@@ -265,13 +404,38 @@ func update_active_piece(piece: Tetromino):
 
 	target_positions.clear()
 
+	# Layer offset hesapla (layout ile tutarlı)
+	var grid_width = grid_size.x * cell_size.x
+	var preview_width = preview_grid_size.x * cell_size.x
+	var unit_width = grid_width + 4 + preview_width
+
+	var grid_spacing = 20
+	if grid_data != null:
+		if grid_data.layer_count == 3:
+			grid_spacing = 8
+		elif grid_data.layer_count == 2:
+			grid_spacing = 20
+
+	var total_layers = 1
+	if view_mode == Constants.ViewMode.SIDE_BY_SIDE:
+		total_layers = grid_data.layer_count if grid_data != null else 1
+
+	var total_width = total_layers * unit_width + (total_layers - 1) * grid_spacing
+	var ideal_start = (320 - total_width) / 2.0
+	var current_parent = 120.0
+	var base_offset_x = ideal_start - current_parent
+
+	var layer_offset = base_offset_x
+	if view_mode == Constants.ViewMode.SIDE_BY_SIDE:
+		layer_offset = base_offset_x + current_layer_idx * (unit_width + grid_spacing)
+
 	# Sprite'ları güncelle veya oluştur
 	var sprite_index = 0
 	for y in range(shape.size()):
 		for x in range(shape[0].size()):
 			if shape[y][x] == 1:
 				var target_pos = Vector2(
-					(pos.x + x) * cell_size.x,
+					layer_offset + (pos.x + x) * cell_size.x,
 					(pos.y + y) * cell_size.y
 				)
 				target_positions.append(target_pos)
@@ -313,6 +477,31 @@ func update_ghost_piece(piece: Tetromino):
 	# Önceki sprite'ları temizle
 	_clear_ghost_sprites()
 
+	# Layer offset hesapla (layout ile tutarlı)
+	var grid_width = grid_size.x * cell_size.x
+	var preview_width = preview_grid_size.x * cell_size.x
+	var unit_width = grid_width + 4 + preview_width
+
+	var grid_spacing = 20
+	if grid_data != null:
+		if grid_data.layer_count == 3:
+			grid_spacing = 8
+		elif grid_data.layer_count == 2:
+			grid_spacing = 20
+
+	var total_layers = 1
+	if view_mode == Constants.ViewMode.SIDE_BY_SIDE:
+		total_layers = grid_data.layer_count if grid_data != null else 1
+
+	var total_width = total_layers * unit_width + (total_layers - 1) * grid_spacing
+	var ideal_start = (320 - total_width) / 2.0
+	var current_parent = 120.0
+	var base_offset_x = ideal_start - current_parent
+
+	var layer_offset = base_offset_x
+	if view_mode == Constants.ViewMode.SIDE_BY_SIDE:
+		layer_offset = base_offset_x + current_layer_idx * (unit_width + grid_spacing)
+
 	# Sprite'ları oluştur
 	var shape = piece.shape
 
@@ -322,7 +511,7 @@ func update_ghost_piece(piece: Tetromino):
 				var sprite = Sprite2D.new()
 				sprite.centered = false
 				sprite.position = Vector2(
-					(ghost_pos.x + x) * cell_size.x,
+					layer_offset + (ghost_pos.x + x) * cell_size.x,
 					(ghost_pos.y + y) * cell_size.y
 				)
 				sprite.scale = Vector2(1, 1)  # 1:1 çizim
@@ -337,20 +526,78 @@ func update_ghost_piece(piece: Tetromino):
 				add_child(sprite)
 				ghost_sprites.append(sprite)
 
+# Next piece preview'ı güncelle
+func update_next_preview(layer_idx: int, piece_type: Constants.TetrominoType, piece_color: Color):
+	if layer_idx < 0 or layer_idx >= preview_cell_sprites.size():
+		return
+
+	if sprite_loader == null:
+		return
+
+	# Önce tüm preview sprite'larını temizle (görünmez yap)
+	for y in range(preview_grid_size.y):
+		for x in range(preview_grid_size.x):
+			if y < preview_cell_sprites[layer_idx].size() and x < preview_cell_sprites[layer_idx][y].size():
+				var sprite: Sprite2D = preview_cell_sprites[layer_idx][y][x]
+				sprite.visible = false
+
+	# Piece shape'i al
+	var shape = Constants.TETROMINO_SHAPES[piece_type]
+
+	# Ortalama için offset hesapla
+	var shape_width = shape[0].size()
+	var shape_height = shape.size()
+	var offset_x = (preview_grid_size.x - shape_width) / 2
+	var offset_y = (preview_grid_size.y - shape_height) / 2
+
+	# Preview sprite'larını güncelle
+	for y in range(shape_height):
+		for x in range(shape_width):
+			if shape[y][x] == 1:
+				var preview_x = int(offset_x) + x
+				var preview_y = int(offset_y) + y
+
+				if preview_y >= 0 and preview_y < preview_grid_size.y and preview_x >= 0 and preview_x < preview_grid_size.x:
+					if preview_y < preview_cell_sprites[layer_idx].size() and preview_x < preview_cell_sprites[layer_idx][preview_y].size():
+						var sprite: Sprite2D = preview_cell_sprites[layer_idx][preview_y][preview_x]
+						sprite.texture = sprite_loader.get_solid_sprite(piece_color)
+						sprite.modulate = Color.WHITE
+						sprite.scale = Vector2(1, 1)
+						sprite.visible = true
+
 # Aktif katmanı vurgula
 func highlight_layer(layer_idx: int, color: Color = Color.WHITE):
 	if view_mode == Constants.ViewMode.SIDE_BY_SIDE:
 		if layer_highlight != null:
+			# Layout hesaplamaları (tutarlı olması için)
+			var grid_width = grid_size.x * cell_size.x
+			var grid_height = grid_size.y * cell_size.y
+			var preview_width = preview_grid_size.x * cell_size.x
+			var unit_width = grid_width + 4 + preview_width
+
+			var grid_spacing = 20
+			if grid_data != null:
+				if grid_data.layer_count == 3:
+					grid_spacing = 8
+				elif grid_data.layer_count == 2:
+					grid_spacing = 20
+
+			var total_layers = 1
+			if view_mode == Constants.ViewMode.SIDE_BY_SIDE:
+				total_layers = grid_data.layer_count if grid_data != null else 1
+
+			var total_width = total_layers * unit_width + (total_layers - 1) * grid_spacing
+			var ideal_start = (320 - total_width) / 2.0
+			var current_parent = 120.0
+			var base_offset_x = ideal_start - current_parent
+
 			layer_highlight.color = color
 			layer_highlight.color.a = 0.3  # Şeffaf highlight
 			layer_highlight.position = Vector2(
-				layer_idx * (grid_size.x * cell_size.x + 20),  # 20px spacing
+				base_offset_x + layer_idx * (unit_width + grid_spacing),
 				0
 			)
-			layer_highlight.size = Vector2(
-				grid_size.x * cell_size.x,
-				grid_size.y * cell_size.y
-			)
+			layer_highlight.size = Vector2(grid_width, grid_height)
 			layer_highlight.visible = true
 	else:
 		if layer_highlight != null:
@@ -370,6 +617,11 @@ func _clear_cell_sprites():
 					sprite.queue_free()
 	cell_sprites.clear()
 
+	for bg in grid_backgrounds:
+		if is_instance_valid(bg):
+			bg.queue_free()
+	grid_backgrounds.clear()
+
 func _clear_active_piece_sprites():
 	for sprite in active_piece_sprites:
 		if is_instance_valid(sprite):
@@ -381,6 +633,19 @@ func _clear_ghost_sprites():
 		if is_instance_valid(sprite):
 			sprite.queue_free()
 	ghost_sprites.clear()
+
+func _clear_preview_sprites():
+	for layer in preview_cell_sprites:
+		for row in layer:
+			for sprite in row:
+				if is_instance_valid(sprite):
+					sprite.queue_free()
+	preview_cell_sprites.clear()
+
+	for bg in preview_backgrounds:
+		if is_instance_valid(bg):
+			bg.queue_free()
+	preview_backgrounds.clear()
 
 func _update_ghost_visibility():
 	for sprite in ghost_sprites:

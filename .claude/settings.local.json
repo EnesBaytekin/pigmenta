@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(godot:*)",
+      "Bash(flatpak list:*)",
+      "Bash(cat:*)"
+    ]
+  }
+}

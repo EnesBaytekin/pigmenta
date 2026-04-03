@@ -414,6 +414,18 @@ func get_current_layer_index() -> int:
 func get_current_piece() -> Tetromino:
 	return current_piece
 
+# Bir sonraki parça tipini al (preview için)
+func get_next_piece_type() -> Constants.TetrominoType:
+	if piece_bag.is_empty():
+		# Bag boşsa, yeni bag oluştur ve ilkini döndür
+		_refill_piece_bag()
+
+	if not piece_bag.is_empty():
+		return piece_bag[0]
+
+	# Fallback (asla olmamalı)
+	return Constants.TetrominoType.I
+
 # Grid'i al (readonly)
 func get_grid() -> GridData:
 	return grid

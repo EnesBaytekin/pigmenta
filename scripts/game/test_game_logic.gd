@@ -7,6 +7,7 @@ var game_manager: GameManager
 var grid_renderer: GridRenderer
 var particle_manager: ParticleManager
 var camera: Camera2D
+var game_hud: GameHUD  # Score display
 
 var fall_timer: float = 0.0
 
@@ -34,6 +35,7 @@ var spawn_happened: bool = false
 func _ready():
 	# Camera referansı al
 	camera = $Camera2D
+	# Kamera pozisyonu scene dosyasında (160,90) olarak ayarlı
 
 	# Debug: Input delay değerlerini yazdır
 	print("FIRST_INPUT_DELAY: ", Constants.FIRST_INPUT_DELAY)
@@ -47,7 +49,8 @@ func _ready():
 
 	# GameManager oluştur
 	game_manager = GameManager.new()
-	game_manager.start_game(3, 1)  # 3 katman, 1 oyuncu
+	# Constants'tan saved ayarları kullan
+	game_manager.start_game(Constants.game_color_count, Constants.game_player_count)
 
 	# Signal'ları bağla
 	game_manager.piece_placed.connect(_on_piece_placed)
@@ -61,16 +64,25 @@ func _ready():
 	# GridRenderer oluştur
 	var renderer_node = $GridRenderer
 	grid_renderer = GridRenderer.new()
+	grid_renderer.position = Vector2.ZERO  # Parent node zaten (120,10) pozisyonunda (ortalanmış)
 	grid_renderer.set_grid_data(game_manager.get_grid())
 	grid_renderer.set_cell_size(Vector2(8, 8))  # 1:1 çizim, scale yok
-	grid_renderer.set_view_mode(Constants.ViewMode.OVERLAPPED)
-	grid_renderer.set_layer_colors(Constants.get_layer_colors(3))
+
+	# Constants'tan view mode ayarlarını kullan
+	var view_mode = Constants.ViewMode.SIDE_BY_SIDE if Constants.game_side_by_side else Constants.ViewMode.OVERLAPPED
+	grid_renderer.set_view_mode(view_mode)
+	grid_renderer.set_layer_colors(Constants.game_block_colors)
 
 	renderer_node.add_child(grid_renderer)
 
 	# ParticleManager oluştur
 	particle_manager = ParticleManager.new()
 	add_child(particle_manager)
+
+	# GameHUD referansını al (CanvasLayer altında)
+	game_hud = $UILayer/GameHUD
+	if game_hud != null:
+		game_hud.set_game_manager(game_manager)
 
 	# İlk parçayı göster
 	_update_renderer()
@@ -283,12 +295,27 @@ func _update_renderer():
 
 	# Aktif parçayı güncelle
 	var piece = game_manager.get_current_piece()
+
+	# Aktif katmanı GridRenderer'a bildir (side-by-side modda positioning için)
+	var layer_idx = game_manager.get_current_layer_index()
+	grid_renderer.set_current_layer(layer_idx)
+
 	grid_renderer.update_active_piece(piece)
 	grid_renderer.update_ghost_piece(piece)
 
+	# Next piece preview'ı güncelle (her layer için)
+	var next_piece_type = game_manager.get_next_piece_type()
+	var layer_colors = Constants.game_block_colors
+
+	# Her layer için next preview'ı güncelle
+	for i in range(game_manager.layer_count):
+		if i < layer_colors.size():
+			# Sıradaki piece'in hangi layer'da olacağını hesapla
+			# color_sequence_index'e göre bir sonraki renk
+			var next_layer_idx = i  # Basitleştirme: her layer kendi rengini gösterir
+			grid_renderer.update_next_preview(i, next_piece_type, layer_colors[i])
+
 	# Aktif katmanı vurgula
-	var layer_idx = game_manager.get_current_layer_index()
-	var layer_colors = Constants.get_layer_colors(game_manager.layer_count)
 	if layer_idx < layer_colors.size():
 		grid_renderer.highlight_layer(layer_idx, layer_colors[layer_idx])
 
@@ -337,7 +364,14 @@ func _on_rows_cleared(row_indices: Array, score_gained: int):
 
 func _on_layer_changed(player_id: int, old_layer: int, new_layer: int):
 	print("Player %d: Layer %d -> %d" % [player_id, old_layer, new_layer])
-	print("Now playing in layer: ", Constants.get_layer_colors(game_manager.layer_count)[new_layer])
+	# Constants'tan custom block colors'ı kullan
+	var layer_colors = Constants.game_block_colors
+	if new_layer < layer_colors.size():
+		print("Now playing in layer: ", layer_colors[new_layer])
+
+	# HUD'ı güncelle
+	if game_hud != null:
+		game_hud.update_hud()
 
 func _on_game_over():
 	print("GAME OVER!")
@@ -346,8 +380,16 @@ func _on_game_over():
 func _on_score_changed(player_id: int, new_score: int):
 	print("Player %d score: %d" % [player_id, new_score])
 
+	# HUD'ı güncelle
+	if game_hud != null:
+		game_hud.update_hud()
+
 func _on_player_changed(player_id: int):
 	print("Current player: %d" % player_id)
+
+	# HUD'ı güncelle
+	if game_hud != null:
+		game_hud.update_hud()
 
 func _reset_input_state():
 	# Yeni blok spawn olduğunda tüm input state'lerini sıfırla
@@ -371,39 +413,20 @@ func _reset_input_state():
 func _restart_game():
 	print("Restarting game...")
 	if game_manager != null:
-		game_manager.start_game(game_manager.layer_count, game_manager.player_count)
+		# Constants'tan saved ayarları kullanarak restart et
+		game_manager.start_game(Constants.game_color_count, Constants.game_player_count)
+
+		# GridRenderer'ı güncelle
+		var view_mode = Constants.ViewMode.SIDE_BY_SIDE if Constants.game_side_by_side else Constants.ViewMode.OVERLAPPED
+		grid_renderer.set_view_mode(view_mode)
+		grid_renderer.set_layer_colors(Constants.game_block_colors)
+
 		_update_renderer()
 
-# Debug çizim
+# Debug çizim (artık HUD var, bu boş kalabilir)
 func _draw():
 	if game_manager == null:
 		return
 
-	# Score çiz
-	var score = game_manager.get_score()
-	draw_string(
-		ThemeDB.fallback_font,
-		Vector2(400, 50),
-		"Score: %d" % score,
-		HORIZONTAL_ALIGNMENT_LEFT,
-		-1,
-		20
-	)
-
-	# Katman bilgisini çiz
-	var layer_idx = game_manager.get_current_layer_index()
-	var layer_colors = Constants.get_layer_colors(game_manager.layer_count)
-	var layer_name = ""
-	match layer_idx:
-		0: layer_name = "RED"
-		1: layer_name = "GREEN"
-		2: layer_name = "BLUE"
-
-	draw_string(
-		ThemeDB.fallback_font,
-		Vector2(400, 80),
-		"Layer: %s" % layer_name,
-		HORIZONTAL_ALIGNMENT_LEFT,
-		-1,
-		16
-	)
+	# HUD artık ayrı bir node olarak var, burada çizim yapmaya gerek yok
+	pass

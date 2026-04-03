@@ -1,5 +1,13 @@
 extends Node
 
+# Game Setup Settings (Menüden gelen ayarlar)
+var game_player_count: int = 1
+var game_color_count: int = 2
+var game_side_by_side: bool = false
+var game_block_colors: Array = [Color.RED, Color.GREEN]
+var game_player_colors: Array = [Color.RED]
+var game_handicap: int = 0
+
 # Grid Boyutları
 const GRID_WIDTH = 10
 const GRID_HEIGHT = 20
@@ -203,3 +211,20 @@ static func calculate_score(lines_cleared: int, use_multiplier: bool = false) ->
 		base_score = int(base_score * SCORE_MULTIPLIER_BONUS)
 
 	return base_score
+
+## Game setup ayarlarını kaydet (menüden çağrılır)
+func set_game_settings(player_count: int, color_count: int, side_by_side: bool, block_colors: Array, player_colors: Array, handicap: int):
+	game_player_count = player_count
+	game_color_count = color_count
+	game_side_by_side = side_by_side
+	game_block_colors = block_colors.duplicate()
+	game_player_colors = player_colors.duplicate()
+	game_handicap = handicap
+
+	print("Game settings saved to Constants:")
+	print("  Players: ", game_player_count)
+	print("  Colors: ", game_color_count)
+	print("  Side by Side: ", game_side_by_side)
+	print("  Block Colors: ", game_block_colors)
+	print("  Player Colors: ", game_player_colors)
+	print("  Handicap: ", game_handicap)

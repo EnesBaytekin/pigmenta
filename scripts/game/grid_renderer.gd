@@ -51,6 +51,13 @@ var layer_highlight: Node2D
 var layer_highlight_color: Color = Color.WHITE
 var layer_highlight_rect: Rect2 = Rect2()
 
+# Layout cache (offset hesaplamaları için)
+var cached_base_offset_x: float = 0.0
+var cached_unit_width: float = 0.0
+var cached_grid_spacing: float = 0.0
+var cached_grid_width: float = 0.0
+var cached_grid_height: float = 0.0
+
 func _ready():
 	# Sprite sheet loader oluştur
 	sprite_loader = SpriteSheetLoader.new()
@@ -63,11 +70,8 @@ func _draw():
 	# Layer highlight çerçevesini çiz
 	if layer_highlight != null and layer_highlight.visible:
 		var rect = layer_highlight_rect
-		# 1 pixel çizgilerle çerçeve çiz
-		draw_line(rect.position, rect.position + Vector2(rect.size.x, 0), layer_highlight_color, 1.0)  # Üst
-		draw_line(rect.position + Vector2(rect.size.x, 0), rect.position + rect.size, layer_highlight_color, 1.0)  # Sağ
-		draw_line(rect.position + rect.size, rect.position + Vector2(0, rect.size.y), layer_highlight_color, 1.0)  # Alt
-		draw_line(rect.position + Vector2(0, rect.size.y), rect.position, layer_highlight_color, 1.0)  # Sol
+		# Düzgün dikdörtgen çerçeve çiz (içi boş)
+		draw_rect(rect, layer_highlight_color, false, 1.0)
 
 func _process(delta):
 	# Smooth animasyon - hedef pozisyonlara lerp
@@ -218,9 +222,9 @@ func _update_layout():
 
 	# Layer sayısına göre spacing'i ayarla (3 layer için daha dar)
 	if total_layers == 3:
-		grid_spacing = 8  # Daha dar spacing
+		grid_spacing = 4  # Daha dar spacing
 	elif total_layers == 2:
-		grid_spacing = 20
+		grid_spacing = 12  # Orta spacing
 
 	# Toplam genişlik hesapla
 	var total_width = total_layers * unit_width + (total_layers - 1) * grid_spacing
@@ -230,6 +234,13 @@ func _update_layout():
 	var ideal_start = (320 - total_width) / 2.0  # Ekranda ideal başlangıç
 	var current_parent = 120.0  # Parent pozisyonu (scene'den)
 	var base_offset_x = ideal_start - current_parent
+
+	# Layout değerlerini cache'le (highlight için)
+	cached_base_offset_x = base_offset_x
+	cached_unit_width = unit_width
+	cached_grid_spacing = grid_spacing
+	cached_grid_width = grid_width
+	cached_grid_height = grid_height
 
 	# Arkaplanları ayarla
 	if grid_background != null:
@@ -418,9 +429,9 @@ func update_active_piece(piece: Tetromino):
 	var grid_spacing = 20
 	if grid_data != null:
 		if grid_data.layer_count == 3:
-			grid_spacing = 8
+			grid_spacing = 4
 		elif grid_data.layer_count == 2:
-			grid_spacing = 20
+			grid_spacing = 12
 
 	var total_layers = 1
 	if view_mode == Constants.ViewMode.SIDE_BY_SIDE:
@@ -491,9 +502,9 @@ func update_ghost_piece(piece: Tetromino):
 	var grid_spacing = 20
 	if grid_data != null:
 		if grid_data.layer_count == 3:
-			grid_spacing = 8
+			grid_spacing = 4
 		elif grid_data.layer_count == 2:
-			grid_spacing = 20
+			grid_spacing = 12
 
 	var total_layers = 1
 	if view_mode == Constants.ViewMode.SIDE_BY_SIDE:
@@ -575,33 +586,11 @@ func update_next_preview(layer_idx: int, piece_type: Constants.TetrominoType, pi
 func highlight_layer(layer_idx: int, color: Color = Color.WHITE):
 	if view_mode == Constants.ViewMode.SIDE_BY_SIDE:
 		if layer_highlight != null:
-			# Layout hesaplamaları (tutarlı olması için)
-			var grid_width = grid_size.x * cell_size.x
-			var grid_height = grid_size.y * cell_size.y
-			var preview_width = preview_grid_size.x * preview_cell_size.x
-			var unit_width = grid_width + 4 + preview_width
-
-			var grid_spacing = 20
-			if grid_data != null:
-				if grid_data.layer_count == 3:
-					grid_spacing = 8
-				elif grid_data.layer_count == 2:
-					grid_spacing = 20
-
-			var total_layers = 1
-			if view_mode == Constants.ViewMode.SIDE_BY_SIDE:
-				total_layers = grid_data.layer_count if grid_data != null else 1
-
-			var total_width = total_layers * unit_width + (total_layers - 1) * grid_spacing
-			var ideal_start = (320 - total_width) / 2.0
-			var current_parent = 120.0
-			var base_offset_x = ideal_start - current_parent
-
-			# Çerçeve rengi ve pozisyonu ayarla
+			# Cache'lenmiş layout değerlerini kullan
 			layer_highlight_color = color
 			layer_highlight_rect = Rect2(
-				Vector2(base_offset_x + layer_idx * (unit_width + grid_spacing), 0),
-				Vector2(grid_width, grid_height)
+				Vector2(cached_base_offset_x + layer_idx * (cached_unit_width + cached_grid_spacing) - 1, -1),
+				Vector2(cached_grid_width + 2, cached_grid_height + 2)
 			)
 			layer_highlight.visible = true
 			queue_redraw()  # Çerçeveyi yeniden çiz

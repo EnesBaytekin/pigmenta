@@ -303,16 +303,14 @@ func _update_renderer():
 	grid_renderer.update_active_piece(piece)
 	grid_renderer.update_ghost_piece(piece)
 
-	# Next piece preview'ı güncelle (her layer için)
-	var next_piece_type = game_manager.get_next_piece_type()
+	# Next piece preview'ı güncelle (her layer için kendi next'i)
 	var layer_colors = Constants.game_block_colors
 
-	# Her layer için next preview'ı güncelle
+	# Her layer için kendi next preview'ını güncelle
 	for i in range(game_manager.layer_count):
 		if i < layer_colors.size():
-			# Sıradaki piece'in hangi layer'da olacağını hesapla
-			# color_sequence_index'e göre bir sonraki renk
-			var next_layer_idx = i  # Basitleştirme: her layer kendi rengini gösterir
+			# Her layer'ın kendi next piece'ini al
+			var next_piece_type = game_manager.get_next_piece_type(i)
 			grid_renderer.update_next_preview(i, next_piece_type, layer_colors[i])
 
 	# Aktif katmanı vurgula

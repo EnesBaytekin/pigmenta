@@ -297,20 +297,26 @@ func _update_layout():
 	# Preview grid'lerini konumlandır
 	if grid_data != null:
 		for layer_idx in range(grid_data.layer_count):
-			# Bu layer için offset hesapla
-			var layer_offset_x = base_offset_x
-			if view_mode == Constants.ViewMode.SIDE_BY_SIDE:
-				layer_offset_x = base_offset_x + layer_idx * (unit_width + grid_spacing)
+			var preview_x: float
+			var preview_y: float
 
-			var preview_x = layer_offset_x + grid_width + 4  # Ana grid'in sağında, 4px boşluk
-			var preview_y = 0
+			if view_mode == Constants.ViewMode.SIDE_BY_SIDE:
+				# Side-by-side: her grid'in yanında
+				var layer_offset_x = base_offset_x + layer_idx * (unit_width + grid_spacing)
+				preview_x = layer_offset_x + grid_width + 4  # Ana grid'in sağında, 4px boşluk
+				preview_y = 0
+			else:
+				# Overlapped: tek grid'in sağında alt alta
+				preview_x = base_offset_x + grid_width + 4  # Ana grid'in sağında, 4px boşluk
+				var preview_height = preview_grid_size.y * preview_cell_size.y
+				preview_y = layer_idx * (preview_height + 2)  # 2px spacing between previews
 
 			# Preview arka planı
 			if layer_idx < preview_backgrounds.size():
 				var bg = preview_backgrounds[layer_idx]
 				bg.position = Vector2(preview_x, preview_y)
 				bg.size = Vector2(preview_grid_size.x * preview_cell_size.x, preview_grid_size.y * preview_cell_size.y)
-				bg.visible = (view_mode == Constants.ViewMode.SIDE_BY_SIDE) or (view_mode == Constants.ViewMode.OVERLAPPED and layer_idx == 0)
+				bg.visible = true  # Tüm layer'ların preview'ı görünür
 
 			# Preview sprite'ları
 			if layer_idx < preview_cell_sprites.size():

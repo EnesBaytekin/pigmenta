@@ -29,8 +29,12 @@ var move_down_first: bool = true
 var rotate_cw_first: bool = true
 var rotate_ccw_first: bool = true
 
-# Spawn sonrası tuş takibi (spawn olduğu anda tuş released sayılır)
-var spawn_happened: bool = false
+# Spawn sırasında basılı olan tuşlar (bırakılana kadar kilitli)
+var locked_move_left: bool = false
+var locked_move_right: bool = false
+var locked_move_down: bool = false
+var locked_rotate_cw: bool = false
+var locked_rotate_ccw: bool = false
 
 func _ready():
 	# Camera referansı al
@@ -145,26 +149,24 @@ func _process(delta):
 func _move_left_timer_process(delta):
 	if move_left_timer > 0:
 		move_left_timer -= delta
-		if move_left_timer <= 0 and Input.is_action_pressed("move_left") and not spawn_happened:
+		if move_left_timer <= 0 and Input.is_action_pressed("move_left") and not locked_move_left and move_left_first == false:
 			# Timer expire oldu ve tuş hala basılı, hareket et
 			if game_manager.move_left():
 				_update_renderer()
 			move_left_timer = Constants.REPEAT_INPUT_DELAY
-			move_left_first = false
 
 func _move_right_timer_process(delta):
 	if move_right_timer > 0:
 		move_right_timer -= delta
-		if move_right_timer <= 0 and Input.is_action_pressed("move_right") and not spawn_happened:
+		if move_right_timer <= 0 and Input.is_action_pressed("move_right") and not locked_move_right and move_right_first == false:
 			if game_manager.move_right():
 				_update_renderer()
 			move_right_timer = Constants.REPEAT_INPUT_DELAY
-			move_right_first = false
 
 func _move_down_timer_process(delta):
 	if move_down_timer > 0:
 		move_down_timer -= delta
-		if move_down_timer <= 0 and Input.is_action_pressed("move_down") and not spawn_happened:
+		if move_down_timer <= 0 and Input.is_action_pressed("move_down") and not locked_move_down and move_down_first == false:
 			if not game_manager.move_down():
 				game_manager.spawn_piece()
 				_reset_input_state()
@@ -173,25 +175,22 @@ func _move_down_timer_process(delta):
 				fall_timer = 0.0
 			_update_renderer()
 			move_down_timer = Constants.REPEAT_INPUT_DELAY
-			move_down_first = false
 
 func _rotate_cw_timer_process(delta):
 	if rotate_cw_timer > 0:
 		rotate_cw_timer -= delta
-		if rotate_cw_timer <= 0 and Input.is_action_pressed("rotate_cw") and not spawn_happened:
+		if rotate_cw_timer <= 0 and Input.is_action_pressed("rotate_cw") and not locked_rotate_cw and rotate_cw_first == false:
 			if game_manager.rotate_cw():
 				_update_renderer()
 			rotate_cw_timer = Constants.REPEAT_INPUT_DELAY
-			rotate_cw_first = false
 
 func _rotate_ccw_timer_process(delta):
 	if rotate_ccw_timer > 0:
 		rotate_ccw_timer -= delta
-		if rotate_ccw_timer <= 0 and Input.is_action_pressed("rotate_ccw") and not spawn_happened:
+		if rotate_ccw_timer <= 0 and Input.is_action_pressed("rotate_ccw") and not locked_rotate_ccw and rotate_ccw_first == false:
 			if game_manager.rotate_ccw():
 				_update_renderer()
 			rotate_ccw_timer = Constants.REPEAT_INPUT_DELAY
-			rotate_ccw_first = false
 
 func _input(event):
 	if game_manager == null:
@@ -217,34 +216,36 @@ func _input(event):
 	# Movement input
 	if event.is_action("move_left"):
 		if event.is_pressed():
-			# Spawn sonrası tuş released edilmediyse input kabul etme
-			if not spawn_happened and move_left_timer <= 0:
-				# İlk basış - hemen çalış ve timer başlat
+			# Spawn sırasında basılıysa kilitle
+			if not locked_move_left and move_left_timer <= 0:
 				if game_manager.move_left():
 					_update_renderer()
 				move_left_timer = Constants.FIRST_INPUT_DELAY
 				move_left_first = false
+				# Diğer tuşları reset et (bu tuş öncelikli)
+				_reset_other_keys("move_left")
 		else:
-			# Tuş bırakıldığında - her şeyi sıfırla
+			# Tuş bırakıldığında - kilidi aç ve sıfırla
+			locked_move_left = false
 			move_left_first = true
 			move_left_timer = 0.0
-			spawn_happened = false
 
 	elif event.is_action("move_right"):
 		if event.is_pressed():
-			if not spawn_happened and move_right_timer <= 0:
+			if not locked_move_right and move_right_timer <= 0:
 				if game_manager.move_right():
 					_update_renderer()
 				move_right_timer = Constants.FIRST_INPUT_DELAY
 				move_right_first = false
+				_reset_other_keys("move_right")
 		else:
+			locked_move_right = false
 			move_right_first = true
 			move_right_timer = 0.0
-			spawn_happened = false
 
 	elif event.is_action("move_down"):
 		if event.is_pressed():
-			if not spawn_happened and move_down_timer <= 0:
+			if not locked_move_down and move_down_timer <= 0:
 				if not game_manager.move_down():
 					# Aşağı hareket edemez -> lock et ve yeni piece spawn et
 					game_manager.spawn_piece()
@@ -255,36 +256,39 @@ func _input(event):
 				_update_renderer()
 				move_down_timer = Constants.FIRST_INPUT_DELAY
 				move_down_first = false
+				_reset_other_keys("move_down")
 		else:
+			locked_move_down = false
 			move_down_first = true
 			move_down_timer = 0.0
-			spawn_happened = false
 
 	# Rotation
 	elif event.is_action("rotate_cw"):
 		if event.is_pressed():
-			if not spawn_happened and rotate_cw_timer <= 0:
+			if not locked_rotate_cw and rotate_cw_timer <= 0:
 				if game_manager.rotate_cw():
 					_update_renderer()
 				rotate_cw_timer = Constants.FIRST_INPUT_DELAY
 				rotate_cw_first = false
+				_reset_other_keys("rotate_cw")
 		else:
+			locked_rotate_cw = false
 			rotate_cw_first = true
 			rotate_cw_timer = 0.0
-			spawn_happened = false
 
 	# Ters yöne döndür
 	elif event.is_action("rotate_ccw"):
 		if event.is_pressed():
-			if not spawn_happened and rotate_ccw_timer <= 0:
+			if not locked_rotate_ccw and rotate_ccw_timer <= 0:
 				if game_manager.rotate_ccw():
 					_update_renderer()
 				rotate_ccw_timer = Constants.FIRST_INPUT_DELAY
 				rotate_ccw_first = false
+				_reset_other_keys("rotate_ccw")
 		else:
+			locked_rotate_ccw = false
 			rotate_ccw_first = true
 			rotate_ccw_timer = 0.0
-			spawn_happened = false
 
 func _update_renderer():
 	if grid_renderer == null or game_manager == null:
@@ -398,8 +402,32 @@ func _on_player_changed(player_id: int):
 	if game_hud != null:
 		game_hud.update_hud()
 
+# Diğer tuşları reset et (yeni basılan tuş öncelikli olur)
+func _reset_other_keys(except_key: String):
+	if except_key != "move_left":
+		move_left_timer = 0.0
+		move_left_first = true
+	if except_key != "move_right":
+		move_right_timer = 0.0
+		move_right_first = true
+	if except_key != "move_down":
+		move_down_timer = 0.0
+		move_down_first = true
+	if except_key != "rotate_cw":
+		rotate_cw_timer = 0.0
+		rotate_cw_first = true
+	if except_key != "rotate_ccw":
+		rotate_ccw_timer = 0.0
+		rotate_ccw_first = true
+
 func _reset_input_state():
-	# Yeni blok spawn olduğunda tüm input state'lerini sıfırla
+	# Yeni blok spawn olduğunda basılı olan tuşları kilitle
+	locked_move_left = Input.is_action_pressed("move_left")
+	locked_move_right = Input.is_action_pressed("move_right")
+	locked_move_down = Input.is_action_pressed("move_down")
+	locked_rotate_cw = Input.is_action_pressed("rotate_cw")
+	locked_rotate_ccw = Input.is_action_pressed("rotate_ccw")
+
 	# Timer'ları sıfırla
 	move_left_timer = 0.0
 	move_right_timer = 0.0
@@ -413,9 +441,6 @@ func _reset_input_state():
 	move_down_first = true
 	rotate_cw_first = true
 	rotate_ccw_first = true
-
-	# Spawn happened flag'ini true yap (tuşlar released edilene kadar input yok)
-	spawn_happened = true
 
 func _restart_game():
 	print("Restarting game...")

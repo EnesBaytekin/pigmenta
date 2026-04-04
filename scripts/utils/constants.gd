@@ -23,8 +23,8 @@ const LAYER_COLORS = {
 const DEFAULT_FALL_SPEED = 1.0  # Saniye başına düşme sayısı
 const FAST_FALL_SPEED = 0.1     # Hard drop hız çarpanı
 const LOCK_DELAY = 0.5          # Blok lock bekleme süresi
-const FIRST_INPUT_DELAY = 0.25  # İlk basışta bekleme süresi
-const REPEAT_INPUT_DELAY = 0.022  # Tekrarlayan basışlar arası bekleme
+const FIRST_INPUT_DELAY = 0.2  # İlk basışta bekleme süresi
+const REPEAT_INPUT_DELAY = 0.017  # Tekrarlayan basışlar arası bekleme
 
 # Score Sistemi
 const SCORE_SINGLE = 100
@@ -56,43 +56,150 @@ enum TetrominoType {
 	L
 }
 
-# Tetramino Şekilleri (her shape 4x4 grid'de tanımlı)
-const TETROMINO_SHAPES = {
+# Tetramino Rotasyonları (her blok için tüm rotasyon state'leri)
+# Index arttıkça saat yönünde 90 derece dönmüş olur
+# Her rotasyonda bloklar aşağı yaslı durur
+const TETROMINO_ROTATIONS = {
 	TetrominoType.I: [
-		[0,0,0,0],
-		[1,1,1,1],
-		[0,0,0,0],
-		[0,0,0,0]
+		# Rotation 0 - Yatay
+		[
+			[0,0,0,0],
+			[1,1,1,1],
+			[0,0,0,0],
+			[0,0,0,0]
+		],
+		# Rotation 1 - Dikey
+		[
+			[0,0,1,0],
+			[0,0,1,0],
+			[0,0,1,0],
+			[0,0,1,0]
+		]
 	],
 	TetrominoType.O: [
-		[1,1],
-		[1,1]
+		# Rotation 0 (O bloğu dönmez)
+		[
+			[1,1],
+			[1,1]
+		]
 	],
 	TetrominoType.T: [
-		[0,1,0],
-		[1,1,1],
-		[0,0,0]
+		# Rotation 0
+		[
+			[0,0,0],
+			[1,1,1],
+			[0,1,0]
+		],
+		# Rotation 1
+		[
+			[0,1,0],
+			[1,1,0],
+			[0,1,0]
+		],
+		# Rotation 2
+		[
+			[0,0,0],
+			[0,1,0],
+			[1,1,1]
+		],
+		# Rotation 3
+		[
+			[0,1,0],
+			[0,1,1],
+			[0,1,0]
+		]
 	],
 	TetrominoType.S: [
-		[0,1,1],
-		[1,1,0],
-		[0,0,0]
+		# Rotation 0
+		[
+			[0,0,0],
+			[0,1,1],
+			[1,1,0]
+		],
+		# Rotation 1
+		[
+			[1,0,0],
+			[1,1,0],
+			[0,1,0]
+		]
 	],
 	TetrominoType.Z: [
-		[1,1,0],
-		[0,1,1],
-		[0,0,0]
+		# Rotation 0
+		[
+			[0,0,0],
+			[1,1,0],
+			[0,1,1]
+		],
+		# Rotation 1
+		[
+			[0,0,1],
+			[0,1,1],
+			[0,1,0]
+		]
 	],
 	TetrominoType.J: [
-		[1,0,0],
-		[1,1,1],
-		[0,0,0]
+		# Rotation 0
+		[
+			[0,0,0],
+			[1,1,1],
+			[0,0,1]
+		],
+		# Rotation 1
+		[
+			[0,1,0],
+			[0,1,0],
+			[1,1,0]
+		],
+		# Rotation 2
+		[
+			[0,0,0],
+			[1,0,0],
+			[1,1,1]
+		],
+		# Rotation 3
+		[
+			[0,1,1],
+			[0,1,0],
+			[0,1,0]
+		]
 	],
 	TetrominoType.L: [
-		[0,0,1],
-		[1,1,1],
-		[0,0,0]
+		# Rotation 0
+		[
+			[0,0,0],
+			[1,1,1],
+			[1,0,0]
+		],
+		# Rotation 1
+		[
+			[1,1,0],
+			[0,1,0],
+			[0,1,0]
+		],
+		# Rotation 2
+		[
+			[0,0,0],
+			[0,0,1],
+			[1,1,1]
+		],
+		# Rotation 3
+		[
+			[0,1,0],
+			[0,1,0],
+			[0,1,1]
+		]
 	]
+}
+
+# Tetramino Şekilleri (backward compatibility için - ilk rotasyon)
+const TETROMINO_SHAPES = {
+	TetrominoType.I: TETROMINO_ROTATIONS[TetrominoType.I][0],
+	TetrominoType.O: TETROMINO_ROTATIONS[TetrominoType.O][0],
+	TetrominoType.T: TETROMINO_ROTATIONS[TetrominoType.T][0],
+	TetrominoType.S: TETROMINO_ROTATIONS[TetrominoType.S][0],
+	TetrominoType.Z: TETROMINO_ROTATIONS[TetrominoType.Z][0],
+	TetrominoType.J: TETROMINO_ROTATIONS[TetrominoType.J][0],
+	TetrominoType.L: TETROMINO_ROTATIONS[TetrominoType.L][0]
 }
 
 # Tetramino spawn pozisyonları (merkez noktaları)
@@ -122,34 +229,10 @@ enum SpeedMode {
 	CONSTANT      # Sabit hız
 }
 
-# Her tetromino için rotasyon sayısı
-const ROTATION_COUNTS = {
-	TetrominoType.I: 4,
-	TetrominoType.O: 1,
-	TetrominoType.T: 4,
-	TetrominoType.S: 2,
-	TetrominoType.Z: 2,
-	TetrominoType.J: 4,
-	TetrominoType.L: 4
-}
+# Her tetromino için rotasyon sayısı (otomatik hesaplanan)
+static func get_rotation_count(type: TetrominoType) -> int:
+	return TETROMINO_ROTATIONS[type].size()
 
-# SRS Wall Kick Data (basitleştirilmiş)
-# Format: [rotation_offset, kick_tests]
-# kick_tests: [x_offset, y_offset] pairs to try
-const WALL_KICK_DATA = {
-	"normal": [
-		[Vector2i(0,0), Vector2i(-1,0), Vector2i(-1,1), Vector2i(0,-2), Vector2i(-1,-2)],  # 0->R
-		[Vector2i(0,0), Vector2i(1,0), Vector2i(1,-1), Vector2i(0,2), Vector2i(1,2)],       # R->2
-		[Vector2i(0,0), Vector2i(1,0), Vector2i(1,1), Vector2i(0,-2), Vector2i(1,-2)],      # 2->L
-		[Vector2i(0,0), Vector2i(-1,0), Vector2i(-1,-1), Vector2i(0,2), Vector2i(-1,2)]      # L->0
-	],
-	"I": [
-		[Vector2i(0,0), Vector2i(-2,0), Vector2i(1,0), Vector2i(-2,-1), Vector2i(1,2)],
-		[Vector2i(0,0), Vector2i(-1,0), Vector2i(2,0), Vector2i(-1,2), Vector2i(2,-1)],
-		[Vector2i(0,0), Vector2i(2,0), Vector2i(-1,0), Vector2i(2,1), Vector2i(-1,-2)],
-		[Vector2i(0,0), Vector2i(1,0), Vector2i(-2,0), Vector2i(1,-2), Vector2i(-2,1)]
-	]
-}
 
 # Helper Functions
 
@@ -177,26 +260,6 @@ static func blend_colors(colors: Array) -> Color:
 static func get_tetromino_size(type: TetrominoType) -> Vector2i:
 	var shape = TETROMINO_SHAPES[type]
 	return Vector2i(shape[0].size(), shape.size())
-
-## Tetramino şeklini döndür (90 derece saat yönü)
-static func rotate_shape(shape: Array) -> Array:
-	var n = shape.size()
-	var m = shape[0].size()
-	var rotated = []
-
-	for i in range(m):
-		var row = []
-		for j in range(n - 1, -1, -1):
-			row.append(shape[j][i])
-		rotated.append(row)
-
-	return rotated
-
-## Belirli bir rotasyon için wall kick testlerini döndür
-static func get_wall_kicks(type: TetrominoType, rotation_state: int) -> Array:
-	var key = "normal" if type != TetrominoType.I else "I"
-	var kicks = WALL_KICK_DATA[key]
-	return kicks[rotation_state] if rotation_state < kicks.size() else []
 
 ## Score'u hesapla (satır sayısına göre)
 static func calculate_score(lines_cleared: int, use_multiplier: bool = false) -> int:

@@ -14,8 +14,9 @@ var color: Color  # Bloğun rengi (katman rengi)
 
 func _init(t: Constants.TetrominoType, layer_idx: int, layer_color: Color):
 	type = t
-	shape = Constants.TETROMINO_SHAPES[type].duplicate(true)  # Deep copy
 	rotation_state = 0
+	# İlk rotasyonu al
+	shape = Constants.TETROMINO_ROTATIONS[type][rotation_state].duplicate(true)
 	layer_index = layer_idx
 	color = layer_color
 
@@ -23,22 +24,6 @@ func _init(t: Constants.TetrominoType, layer_idx: int, layer_color: Color):
 	var spawn_pos = Constants.SPAWN_POSITIONS[type]
 	grid_position = spawn_pos
 
-# Mevcut shape'i döndür (saat yönü)
-func rotate() -> Array:
-	var rotation_count = Constants.ROTATION_COUNTS[type]
-	if rotation_count > 1:
-		shape = Constants.rotate_shape(shape)
-		rotation_state = (rotation_state + 1) % rotation_count
-	return shape
-
-# Mevcut shape'i ters döndür (saat yönü tersi)
-func rotate_back() -> Array:
-	var rotation_count = Constants.ROTATION_COUNTS[type]
-	if rotation_count > 1:
-		for i in range(rotation_count - 1):  # (n-1) kez saat yönü = 1 kez ters
-			shape = Constants.rotate_shape(shape)
-		rotation_state = (rotation_state + rotation_count - 1) % rotation_count
-	return shape
 
 # Hareket ettir
 func move(direction: Vector2i) -> Vector2i:
@@ -76,41 +61,36 @@ func get_ghost_position(grid: GridData) -> Vector2i:
 func can_move_to(grid: GridData, new_pos: Vector2i) -> bool:
 	return _can_place_at(grid, shape, new_pos)
 
-# Rotasyon yapılabilir mi? (wall kick dahil)
-func can_rotate(grid: GridData, direction: int = 1) -> bool:
-	# direction: 1 = saat yönü, -1 = saat yönü tersi
-	var new_shape = _get_rotated_shape(direction)
-	var kicks = Constants.get_wall_kicks(type, rotation_state)
-
-	for kick in kicks:
-		var test_pos = grid_position + kick
-		if _can_place_at(grid, new_shape, test_pos):
-			return true
-
-	return false
-
-# Rotasyon uygula (wall kick dahil)
+# Rotasyon uygula (basit wall kick dahil)
 func apply_rotation(grid: GridData, direction: int = 1) -> bool:
 	# direction: 1 = saat yönü, -1 = saat yönü tersi
-	var rotation_count = Constants.ROTATION_COUNTS[type]
+	var rotation_count = Constants.get_rotation_count(type)
 	if rotation_count <= 1:
-		return false  # O bloğu gibi dönmeyenler
+		return false  # O bloğu dönmez
 
-	var new_shape = _get_rotated_shape(direction)
-	var kicks = Constants.get_wall_kicks(type, rotation_state)
+	# Yeni rotation state'i hesapla
+	var new_rotation_state: int
+	if direction == 1:
+		new_rotation_state = (rotation_state + 1) % rotation_count
+	else:
+		new_rotation_state = (rotation_state + rotation_count - 1) % rotation_count
 
-	for kick in kicks:
-		var test_pos = grid_position + kick
+	# Yeni shape'i al
+	var new_shape = Constants.TETROMINO_ROTATIONS[type][new_rotation_state].duplicate(true)
+
+	# Basit wall kick: sadece yatayda offset dene
+	var kick_offsets = _get_wall_kick_offsets(grid, new_shape)
+
+	for offset_x in kick_offsets:
+		var test_pos = grid_position + Vector2i(offset_x, 0)
 		if _can_place_at(grid, new_shape, test_pos):
+			# Başarılı rotasyon!
 			shape = new_shape
 			grid_position = test_pos
-			if direction == 1:
-				rotation_state = (rotation_state + 1) % rotation_count
-			else:
-				rotation_state = (rotation_state + rotation_count - 1) % rotation_count
+			rotation_state = new_rotation_state
 			return true
 
-	return false
+	return false  # Hiçbir offset işe yaramadı
 
 # Shape'in kapladığı grid hücrelerini al
 func get_occupied_cells() -> Array:
@@ -154,16 +134,31 @@ func _can_place_at(grid: GridData, test_shape: Array, test_pos: Vector2i) -> boo
 
 	return true
 
-# Rotasyon uygulanmış shape'i al (değiştirmeden)
-func _get_rotated_shape(direction: int) -> Array:
-	var rotation_count = Constants.ROTATION_COUNTS[type]
-	var result = shape.duplicate(true)
+# Wall kick offset'lerini hesapla (basit sistem)
+func _get_wall_kick_offsets(grid: GridData, test_shape: Array) -> Array:
+	# Grid genişliği
+	var grid_width = grid.width if grid != null else 10
 
-	var rotations = direction if direction > 0 else rotation_count - 1  # T yöne için
+	# Shape genişliğini hesapla
+	var shape_width = test_shape[0].size()
 
-	for i in range(rotations):
-		result = Constants.rotate_shape(result)
-	return result
+	# Grid dışına taşıyor mu kontrol et
+	var right_edge = grid_position.x + shape_width
+	var left_edge = grid_position.x
+
+	# Offset listesi: önce 0, sonra içe doğru itme denemeleri
+	var offsets = [0]  # Önce olduğu yerde dene
+
+	if right_edge > grid_width:
+		# Sağ kenarda - sola it
+		offsets.append(-1)
+		offsets.append(-2)
+	elif left_edge < 0:
+		# Sol kenarda - sağa it
+		offsets.append(1)
+		offsets.append(2)
+
+	return offsets
 
 # Tetromino'yu string olarak dön (debug için)
 func _to_string() -> String:

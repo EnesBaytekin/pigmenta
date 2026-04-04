@@ -2,3 +2,5 @@ res://scripts/game/test_game_logic.gd
 res://scenes/game/test_game.tscn
 res://scripts/game/game_manager.gd
 res://scripts/game/grid_renderer.gd
+res://scripts/game/tetromino.gd
+res://scripts/utils/constants.gd
